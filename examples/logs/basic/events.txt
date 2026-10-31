@@ -1,0 +1,2 @@
+2026/01/01 00:00:00|INFO|demo.web|request started
+2026/01/01 00:00:01|ERROR|demo.web|request failed

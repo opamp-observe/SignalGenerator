@@ -1,0 +1,1 @@
+{"frame":1,"metrics":[{"name":"nginx_connections_active","type":"gauge","help":"Active NGINX connections.","samples":[{"labels":{"instance":"demo-nginx"},"value":4}]}]}

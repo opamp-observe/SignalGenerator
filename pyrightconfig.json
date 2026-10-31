@@ -1,0 +1,24 @@
+{
+  "reportInvalidTypeForm": "none",
+  "reportMissingImports": "none",
+  "reportMissingModuleSource": "none",
+  "reportMissingTypeStubs": "none",
+  "venvPath": ".",
+  "venv": ".venv",
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "extraPaths": [
+        ".",
+        "src"
+      ]
+    },
+    {
+      "root": "tests",
+      "extraPaths": [
+        ".",
+        "src"
+      ]
+    }
+  ]
+}

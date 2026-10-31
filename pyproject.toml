@@ -1,0 +1,122 @@
+[build-system]
+requires = ["setuptools>=82", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "signal-generator"
+version = "0.1.0"
+description = "Replay logs and Prometheus metric frames for observability testing"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [{ name = "Phil Wilkins" }]
+keywords = ["logging", "metrics", "prometheus", "replay", "testing"]
+dependencies = [
+  "httpx>=0.27",
+  "jsonschema>=4.23",
+]
+
+[project.optional-dependencies]
+quart = ["quart>=0.19.4"]
+test = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23",
+  "pytest-cov>=7.0.0",
+]
+quality = [
+  "pylint>=3.0",
+  "radon>=6.0",
+  "ruff>=0.15.0",
+  "xenon>=0.9",
+]
+release = [
+  "build>=1.2",
+  "twine>=6.0",
+]
+security = ["pip-audit>=2.7"]
+dev = [
+  "build>=1.2",
+  "pip-audit>=2.7",
+  "pylint>=3.0",
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23",
+  "pytest-cov>=7.0.0",
+  "quart>=0.19.4",
+  "radon>=6.0",
+  "ruff>=0.15.0",
+  "twine>=6.0",
+  "xenon>=0.9",
+]
+
+[project.scripts]
+signal-generator = "signal_generator.cli:main"
+
+[project.entry-points."signal_generator.log_outputs"]
+# Third-party distributions add named outputs in this group.
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+signal_generator = ["py.typed", "schemas/*.json"]
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
+addopts = [
+  "--cov=signal_generator",
+  "--cov-report=term-missing",
+  "--cov-report=xml:coverage.xml",
+  "--cov-branch",
+  "--cov-fail-under=90",
+]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["signal_generator"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+precision = 2
+exclude_lines = [
+  "pragma: no cover",
+  "if __name__ == .__main__.:",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "S", "C90"]
+ignore = ["E501"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["signal_generator"]
+
+[tool.pylint.main]
+py-version = "3.10"
+
+[tool.pylint.format]
+max-line-length = 100
+
+[tool.pylint.messages_control]
+disable = [
+  "broad-exception-caught",
+  "cyclic-import",
+  "too-few-public-methods",
+  "too-many-instance-attributes",
+  "too-many-locals",
+  "too-many-return-statements",
+]

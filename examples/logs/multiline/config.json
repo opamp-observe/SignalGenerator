@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "logs": {
+    "enabled": true,
+    "source": {
+      "path": "events.txt",
+      "format": "%t %m",
+      "datetime_format": "yyyy-MM-dd HH:mm:ss",
+      "multiline": {"first_line_pattern": "^\\d{4}-\\d{2}-\\d{2}"}
+    },
+    "format": "%l %m",
+    "replay": {"cycles": 1, "default_interval_ms": 0},
+    "outputs": [{"type": "stdout"}]
+  }
+}

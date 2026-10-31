@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "runtime": {"log_level": "DEBUG", "shutdown_timeout_seconds": 10},
+  "deployment": {"mode": "standalone", "failure_policy": "fail_process"},
+  "logs": {
+    "enabled": true,
+    "source": {
+      "path": "events.txt",
+      "format": "%t|%l|%c|%m",
+      "datetime_format": "yyyy/MM/dd HH:mm:ss",
+      "separator": "|"
+    },
+    "format": "%t >%l< [%c] %m cycle=%i record=%j",
+    "datetime_format": "yyyy/MM/dd HH:mm:ss",
+    "defaults": {"process": "Thread-1", "location": "demo", "log_level": "INFO"},
+    "replay": {"cycles": 1, "default_interval_ms": 0, "acceleration": 1.0},
+    "outputs": [{"type": "stdout"}]
+  }
+}

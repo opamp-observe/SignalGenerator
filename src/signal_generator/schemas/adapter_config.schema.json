@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opamp.info/signal-generator/schemas/opamp-adapter-v1.json",
+  "title": "SignalGenerator OpAMP adapter configuration contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "signal_generator_runtimes", "simulator_instances"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "signal_generator_runtimes": {"type": "array", "items": {"type": "object"}},
+    "simulator_instances": {"type": "array", "items": {"type": "object"}}
+  }
+}
