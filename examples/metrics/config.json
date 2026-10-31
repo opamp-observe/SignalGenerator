@@ -3,6 +3,14 @@
   "metrics": {
     "enabled": true,
     "source": {"path": "frames.jsonl", "eof": "loop"},
-    "pull": {"enabled": true, "host": "127.0.0.1", "port": 9108, "path": "/metrics"}
+    "pull": {"enabled": true, "host": "127.0.0.1", "port": 9108, "path": "/metrics"},
+    "push": {
+      "enabled": false,
+      "protocol": "pushgateway",
+      "url": "http://127.0.0.1:9091",
+      "job": "nginx_replay",
+      "grouping_key": {"instance": "demo-nginx"},
+      "interval_seconds": 15
+    }
   }
 }

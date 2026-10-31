@@ -261,43 +261,37 @@ process or second listener is created. The `opamp-core` images are unchanged.
 The demo represents NGINX exporter-style metrics; it does not need a running NGINX server because
 the purpose is to replay recorded snapshots.
 
-Planned frames show a recognizable traffic progression:
+The checked-in frames show a recognizable traffic progression:
 
 | Frame | Active | Reading | Writing | Waiting | Requests total |
 |---|---:|---:|---:|---:|---:|
-| 1 | 4 | 1 | 1 | 2 | 1200 |
-| 2 | 9 | 2 | 3 | 4 | 1280 |
-| 3 | 15 | 3 | 7 | 5 | 1410 |
-| 4 | 6 | 1 | 2 | 3 | 1495 |
+| 1 | 4 | — | — | — | 1200 |
+| 2 | 7 | — | — | — | 1242 |
+| 3 | 3 | — | — | — | 1291 |
 
 Metric families include:
 
 - `nginx_up`
 - `nginx_connections_active`
-- `nginx_connections_reading`
-- `nginx_connections_writing`
-- `nginx_connections_waiting`
-- `nginx_connections_accepted_total`
-- `nginx_connections_handled_total`
 - `nginx_http_requests_total`
 
 All frames retain identical help text and label names.
 
-Planned `demo/nginx/compose.yml` services:
+Checked-in `tests/test-containers/phase5/compose.yaml` services:
 
 | Service | Purpose |
 |---|---|
-| `signal-generator` | Replays the NGINX JSONL frames and exposes port 9108. |
+| `signal-generator-pull` / `signal-generator-push` | Replays the NGINX JSONL frames. |
 | `pushgateway` | Receives scheduled frames when the push profile is enabled. |
-| `prometheus` | Scrapes SignalGenerator and Pushgateway. |
-| `e2e-verifier` | Runs deterministic assertions and exits. |
+| `prometheus-pull` / `prometheus-unified` | Scrapes the selected replay deployment. |
+| `unified` | Runs the adapter, simulated client, and replay runtime in one Quart process. |
 
 Compose profiles should support:
 
 ```text
-docker compose -f demo/nginx/compose.yml up --build
-docker compose -f demo/nginx/compose.yml --profile push up --build
-docker compose -f demo/nginx/compose.yml --profile test up --build --abort-on-container-exit
+docker compose -f tests/test-containers/phase5/compose.yaml --profile pull up --build
+docker compose -f tests/test-containers/phase5/compose.yaml --profile push up --build
+docker compose -f tests/test-containers/phase5/compose.yaml --profile unified up --build
 ```
 
 ## 9. End-to-end assertions

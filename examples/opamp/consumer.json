@@ -1,0 +1,9 @@
+{
+  "consumer": {
+    "server_url": "http://host.docker.internal:8080",
+    "transport": "http",
+    "heartbeat_frequency": 5,
+    "service_type": "simulator",
+    "log_level": "debug"
+  }
+}

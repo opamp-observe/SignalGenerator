@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "runtime": {"log_level": "DEBUG", "shutdown_timeout_seconds": 10},
+  "metrics": {
+    "enabled": true,
+    "source": {"path": "frames.jsonl", "eof": "loop"},
+    "pull": {
+      "enabled": true,
+      "host": "0.0.0.0",
+      "port": 9108,
+      "path": "/metrics",
+      "include_self_metrics": true
+    },
+    "push": {
+      "enabled": true,
+      "protocol": "pushgateway",
+      "url": "http://pushgateway:9091",
+      "job": "nginx_replay",
+      "grouping_key": {"instance": "demo-nginx"},
+      "interval_seconds": 1,
+      "timeout_seconds": 5,
+      "retry": {
+        "maximum_attempts": 5,
+        "initial_backoff_seconds": 0.2,
+        "maximum_backoff_seconds": 2
+      }
+    }
+  }
+}

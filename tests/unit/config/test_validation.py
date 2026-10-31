@@ -14,9 +14,13 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
-from signal_generator.config.loader import load_configuration
+from signal_generator.config.loader import load_configuration, load_configuration_mapping
 from signal_generator.config.redaction import redact_secrets
-from signal_generator.config.validation import load_schema, validate_config_file
+from signal_generator.config.validation import (
+    load_schema,
+    validate_config_file,
+    validate_config_mapping,
+)
 from signal_generator.constants import REDACTED_VALUE
 
 
@@ -29,6 +33,31 @@ def test_valid_configuration_and_relative_path(log_config_factory) -> None:
     assert result.valid
     assert loaded.model.logs is not None
     assert loaded.model.logs.source.path == config_path.parent / "events.txt"
+
+
+def test_in_memory_validation_and_loading_for_embedding(log_config_factory) -> None:
+    """Remote-config callers validate and type mappings relative to an explicit base path."""
+
+    config_path = log_config_factory()
+    document = json.loads(config_path.read_text(encoding="utf-8"))
+    result = validate_config_mapping(document, base_path=config_path.parent)
+    loaded = load_configuration_mapping(document, base_path=config_path.parent)
+    assert result.valid
+    assert loaded.path.name == "<in-memory-config>"
+    assert loaded.model.logs and loaded.model.logs.source.path == config_path.parent / "events.txt"
+
+
+def test_invalid_in_memory_environment_override_is_diagnostic(log_config_factory) -> None:
+    """Mapping validation translates invalid environment conversions into diagnostics."""
+
+    config_path = log_config_factory()
+    document = json.loads(config_path.read_text(encoding="utf-8"))
+    result = validate_config_mapping(
+        document,
+        base_path=config_path.parent,
+        environ={"SIGNAL_GENERATOR_METRICS_PORT": "bad"},
+    )
+    assert not result.valid and "invalid literal" in result.errors[0].message
 
 
 def test_schema_only_does_not_require_source(log_config_factory) -> None:
@@ -116,7 +145,11 @@ def test_metric_source_jsonl_validation(tmp_path: Path) -> None:
     (tmp_path / "frames.jsonl").write_text("{bad}\n", encoding="utf-8")
     document = {
         "schema_version": 1,
-        "metrics": {"enabled": True, "source": {"path": "frames.jsonl"}},
+        "metrics": {
+            "enabled": True,
+            "source": {"path": "frames.jsonl"},
+            "pull": {"enabled": True},
+        },
     }
     config_path = tmp_path / "config.json"
     config_path.write_text(json.dumps(document), encoding="utf-8")

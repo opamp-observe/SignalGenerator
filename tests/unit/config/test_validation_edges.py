@@ -75,7 +75,11 @@ def test_invalid_regex_and_metric_frame_schema(tmp_path: Path) -> None:
             },
             "outputs": [{"type": "stdout"}],
         },
-        "metrics": {"enabled": True, "source": {"path": "frames.jsonl"}},
+        "metrics": {
+            "enabled": True,
+            "source": {"path": "frames.jsonl"},
+            "pull": {"enabled": True},
+        },
     }
     config_path = tmp_path / "config.json"
     config_path.write_text(json.dumps(document), encoding="utf-8")
@@ -89,7 +93,11 @@ def test_missing_and_oversized_metric_source(tmp_path: Path) -> None:
 
     document = {
         "schema_version": 1,
-        "metrics": {"enabled": True, "source": {"path": "missing.jsonl"}},
+        "metrics": {
+            "enabled": True,
+            "source": {"path": "missing.jsonl"},
+            "pull": {"enabled": True},
+        },
     }
     config_path = tmp_path / "config.json"
     config_path.write_text(json.dumps(document), encoding="utf-8")
@@ -98,3 +106,33 @@ def test_missing_and_oversized_metric_source(tmp_path: Path) -> None:
     document["metrics"]["source"]["maximum_line_bytes"] = 1
     config_path.write_text(json.dumps(document), encoding="utf-8")
     assert "exceeds maximum_line_bytes" in validate_config_file(config_path).errors[0].message
+
+
+def test_metric_routes_push_scheme_and_ca_file_are_preflighted(tmp_path: Path) -> None:
+    """Reserved routes, unsupported URL schemes, and missing CA files fail validation."""
+
+    (tmp_path / "frames.jsonl").write_text(
+        '{"metrics":[{"name":"up","type":"gauge","help":"Up.","samples":[{"value":1}]}]}\n',
+        encoding="utf-8",
+    )
+    document = {
+        "schema_version": 1,
+        "metrics": {
+            "enabled": True,
+            "source": {"path": "frames.jsonl"},
+            "pull": {"enabled": True, "path": "/healthz"},
+            "push": {
+                "enabled": True,
+                "url": "ftp://example.test",
+                "job": "demo",
+                "interval_seconds": 1,
+                "tls": {"ca_file": "missing.pem"},
+            },
+        },
+    }
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(document), encoding="utf-8")
+    messages = [diagnostic.message for diagnostic in validate_config_file(config_path).errors]
+    assert any("reserved route" in message for message in messages)
+    assert any("http or https" in message for message in messages)
+    assert any("missing.pem" in message for message in messages)

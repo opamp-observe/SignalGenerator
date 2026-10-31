@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "mode": "supervised",
+  "supervised": {
+    "config_path": "../metrics/config.json",
+    "executable_path": "signal-generator",
+    "health_url": "http://127.0.0.1:9108/healthz",
+    "shutdown_timeout_seconds": 10
+  }
+}

@@ -103,7 +103,8 @@
       "additionalProperties": false,
       "properties": {
         "maximum_attempts": {"type": "integer", "minimum": 1, "default": 3},
-        "initial_backoff_seconds": {"type": "number", "minimum": 0, "default": 0.1}
+        "initial_backoff_seconds": {"type": "number", "minimum": 0, "default": 0.1},
+        "maximum_backoff_seconds": {"type": "number", "minimum": 0, "default": 30}
       }
     },
     "output": {
@@ -140,7 +141,7 @@
     },
     "metrics": {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "required": ["enabled"],
       "properties": {
         "enabled": {"type": "boolean"},
@@ -155,9 +156,79 @@
             "maximum_line_bytes": {"type": "integer", "minimum": 1, "default": 10485760},
             "maximum_samples_per_frame": {"type": "integer", "minimum": 1, "default": 100000}
           }
+        },
+        "pull": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {"type": "boolean", "default": false},
+            "host": {"type": "string", "minLength": 1, "default": "127.0.0.1"},
+            "port": {"type": "integer", "minimum": 1, "maximum": 65535, "default": 9108},
+            "path": {"type": "string", "pattern": "^/", "default": "/metrics"},
+            "include_self_metrics": {"type": "boolean", "default": true}
+          }
+        },
+        "push": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {"type": "boolean", "default": false},
+            "protocol": {"const": "pushgateway", "default": "pushgateway"},
+            "url": {"type": "string", "format": "uri"},
+            "job": {"type": "string", "minLength": 1},
+            "grouping_key": {
+              "type": "object",
+              "propertyNames": {"pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"},
+              "additionalProperties": {"type": "string"},
+              "default": {}
+            },
+            "interval_seconds": {"type": "number", "exclusiveMinimum": 0},
+            "timeout_seconds": {"type": "number", "exclusiveMinimum": 0, "default": 5},
+            "method": {"const": "replace", "default": "replace"},
+            "basic_auth": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["username", "password_env"],
+              "properties": {
+                "username": {"type": "string", "minLength": 1},
+                "password_env": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"}
+              }
+            },
+            "bearer_token_env": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+            "tls": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "verify": {"type": "boolean", "default": true},
+                "ca_file": {"type": "string", "minLength": 1}
+              }
+            },
+            "retry": {"$ref": "#/$defs/retry"},
+            "use_source_timing": {"type": "boolean", "default": false}
+          },
+          "allOf": [
+            {
+              "if": {"properties": {"enabled": {"const": true}}},
+              "then": {"required": ["url", "job", "interval_seconds"]}
+            },
+            {
+              "not": {"required": ["basic_auth", "bearer_token_env"]}
+            }
+          ]
         }
       },
-      "allOf": [{"if": {"properties": {"enabled": {"const": true}}}, "then": {"required": ["source"]}}]
+      "allOf": [
+        {
+          "if": {"properties": {"enabled": {"const": true}}},
+          "then": {
+            "required": ["source"],
+            "anyOf": [
+              {"properties": {"pull": {"required": ["enabled"], "properties": {"enabled": {"const": true}}}}, "required": ["pull"]},
+              {"properties": {"push": {"required": ["enabled"], "properties": {"enabled": {"const": true}}}}, "required": ["push"]}
+            ]
+          }
+        }
+      ]
     }
   }
 }

@@ -23,12 +23,17 @@ from jsonschema.exceptions import ValidationError
 
 from signal_generator.config.loader import apply_environment_overrides, read_json_document
 from signal_generator.constants import (
+    KEY_CA_FILE,
     KEY_DEPLOYMENT,
     KEY_ENABLED,
     KEY_LOGS,
     KEY_METRICS,
     KEY_PATH,
+    KEY_PULL,
+    KEY_PUSH,
     KEY_SOURCE,
+    KEY_TLS,
+    KEY_URL,
     MAXIMUM_VALIDATION_ERRORS,
     RESULT_VERSION,
 )
@@ -124,6 +129,30 @@ def validate_config_file(
     if not errors and not schema_only:
         errors.extend(_semantic_diagnostics(effective, config_path))
         errors.extend(_source_diagnostics(effective, config_path))
+    ordered = sorted(errors, key=_diagnostic_sort_key)[:MAXIMUM_VALIDATION_ERRORS]
+    return ValidationResult(tuple(ordered))
+
+
+def validate_config_mapping(
+    document: Mapping[str, Any],
+    *,
+    base_path: str | Path,
+    schema_only: bool = False,
+    strict: bool = False,
+    environ: Mapping[str, str] | None = None,
+) -> ValidationResult:
+    """Validate an in-memory configuration using ``base_path`` for referenced files."""
+
+    del strict  # Reserved for warning promotion when deprecations are introduced.
+    source = Path(base_path).expanduser().resolve() / "<in-memory-config>"
+    try:
+        effective = apply_environment_overrides(document, environ)
+    except (TypeError, ValueError) as error:
+        return ValidationResult((_simple_diagnostic(CODE_SEMANTIC, source, str(error)),))
+    errors = list(_schema_diagnostics(effective, "config.schema.json", source))
+    if not errors and not schema_only:
+        errors.extend(_semantic_diagnostics(effective, source))
+        errors.extend(_source_diagnostics(effective, source))
     ordered = sorted(errors, key=_diagnostic_sort_key)[:MAXIMUM_VALIDATION_ERRORS]
     return ValidationResult(tuple(ordered))
 
@@ -270,6 +299,43 @@ def _semantic_diagnostics(document: Mapping[str, Any], source: Path) -> list[Dia
                         "/logs/source/multiline/first_line_pattern",
                     )
                 )
+    diagnostics.extend(_metric_configuration_diagnostics(document, source))
+    return diagnostics
+
+
+def _metric_configuration_diagnostics(
+    document: Mapping[str, Any], source: Path
+) -> list[Diagnostic]:
+    """Reject pull route collisions and unsupported Pushgateway URL schemes."""
+
+    diagnostics: list[Diagnostic] = []
+    metrics = document.get(KEY_METRICS, {})
+    if not isinstance(metrics, Mapping) or not metrics.get(KEY_ENABLED):
+        return diagnostics
+    pull = metrics.get(KEY_PULL, {})
+    if isinstance(pull, Mapping) and pull.get(KEY_ENABLED):
+        pull_path = pull.get(KEY_PATH, "/metrics")
+        if pull_path in {"/", "/healthz", "/readyz"}:
+            diagnostics.append(
+                _simple_diagnostic(
+                    CODE_SEMANTIC,
+                    source,
+                    f"metrics pull path conflicts with reserved route {pull_path}",
+                    "/metrics/pull/path",
+                )
+            )
+    push = metrics.get(KEY_PUSH, {})
+    if isinstance(push, Mapping) and push.get(KEY_ENABLED):
+        push_url = str(push.get(KEY_URL, ""))
+        if not push_url.startswith(("http://", "https://")):
+            diagnostics.append(
+                _simple_diagnostic(
+                    CODE_SEMANTIC,
+                    source,
+                    "Pushgateway URL must use http or https",
+                    "/metrics/push/url",
+                )
+            )
     return diagnostics
 
 
@@ -294,6 +360,18 @@ def _source_diagnostics(document: Mapping[str, Any], config_path: Path) -> list[
         if isinstance(metric_source, Mapping):
             source_path = _resolve_source_path(base_path, metric_source.get(KEY_PATH))
             diagnostics.extend(_metric_source_diagnostics(source_path, metric_source))
+        push = metrics.get(KEY_PUSH, {})
+        if isinstance(push, Mapping):
+            tls = push.get(KEY_TLS, {})
+            if isinstance(tls, Mapping) and tls.get(KEY_CA_FILE):
+                ca_path = _resolve_source_path(base_path, tls[KEY_CA_FILE])
+                diagnostics.extend(
+                    _readability_diagnostics(
+                        ca_path,
+                        "utf-8",
+                        "/metrics/push/tls/ca_file",
+                    )
+                )
     return diagnostics
 
 
@@ -364,7 +442,33 @@ def _metric_source_diagnostics(path: Path, source: Mapping[str, Any]) -> list[Di
         diagnostics.append(
             _simple_diagnostic(CODE_SOURCE, path, str(error), "/metrics/source/path")
         )
+    if not diagnostics:
+        diagnostics.extend(_metric_semantic_diagnostics(path, source))
     return diagnostics
+
+
+def _metric_semantic_diagnostics(path: Path, source: Mapping[str, Any]) -> list[Diagnostic]:
+    """Apply frame invariants and cross-frame descriptor checks after schema validation."""
+
+    from signal_generator.config.models import MetricSourceConfig  # pylint: disable=import-outside-toplevel
+    from signal_generator.metrics.source import (  # pylint: disable=import-outside-toplevel
+        MetricDataError,
+        load_metric_frames,
+    )
+
+    try:
+        load_metric_frames(
+            MetricSourceConfig(
+                path=path,
+                encoding=str(source.get("encoding", "utf-8")),
+                eof=str(source.get("eof", "loop")),
+                maximum_line_bytes=int(source.get("maximum_line_bytes", 10_485_760)),
+                maximum_samples_per_frame=int(source.get("maximum_samples_per_frame", 100_000)),
+            )
+        )
+    except (MetricDataError, OSError, UnicodeError) as error:
+        return [_simple_diagnostic(CODE_METRIC_FRAME, path, str(error), "/metrics/source/path")]
+    return []
 
 
 def _diagnostic_sort_key(diagnostic: Diagnostic) -> tuple[str, int, str, str]:

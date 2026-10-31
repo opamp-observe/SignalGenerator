@@ -20,28 +20,14 @@ from signal_generator.config.loader import load_configuration
 
 
 @pytest.mark.asyncio
-async def test_application_rejects_unimplemented_modes(log_config_factory) -> None:
-    """Embedded, metrics, and empty configurations fail before runtime resources start."""
+async def test_application_rejects_embedded_mode(log_config_factory) -> None:
+    """The standalone command rejects an embedded host configuration."""
 
     embedded_path = log_config_factory(
         {"deployment": {"mode": "embedded_quart", "route_prefix": "/runtime", "runtime_id": "one"}}
     )
     with pytest.raises(ApplicationStartupError, match="embedded"):
         await run_application(load_configuration(embedded_path).model)
-    metrics_path = embedded_path.parent / "metrics.json"
-    frames_path = embedded_path.parent / "frames.jsonl"
-    frames_path.write_text(
-        '{"metrics":[{"name":"up","type":"gauge","help":"up","samples":[{"value":1}]}]}\n',
-        encoding="utf-8",
-    )
-    metrics_path.write_text(
-        json.dumps(
-            {"schema_version": 1, "metrics": {"enabled": True, "source": {"path": "frames.jsonl"}}}
-        ),
-        encoding="utf-8",
-    )
-    with pytest.raises(ApplicationStartupError, match="Phase 3"):
-        await run_application(load_configuration(metrics_path).model)
 
 
 def test_cli_print_and_conversion_errors(
@@ -101,3 +87,37 @@ def test_loader_without_validation_and_non_object_override(log_config_factory) -
     invalid_path = log_config_factory({"runtime": "bad"})
     with pytest.raises(ValueError, match="non-object"):
         load_configuration(invalid_path, {"SIGNAL_GENERATOR_LOG_LEVEL": "INFO"}, validate=False)
+
+
+def test_cli_classifies_missing_push_secret_as_startup_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An unresolved Pushgateway secret fails before network access with exit code four."""
+
+    monkeypatch.delenv("MISSING_PUSH_TOKEN", raising=False)
+    (tmp_path / "frames.jsonl").write_text(
+        '{"metrics":[{"name":"up","type":"gauge","help":"Up.","samples":[{"value":1}]}]}\n',
+        encoding="utf-8",
+    )
+    config_path = tmp_path / "push.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "metrics": {
+                    "enabled": True,
+                    "source": {"path": "frames.jsonl", "eof": "stop"},
+                    "push": {
+                        "enabled": True,
+                        "url": "http://127.0.0.1:9091",
+                        "job": "demo",
+                        "interval_seconds": 1,
+                        "bearer_token_env": "MISSING_PUSH_TOKEN",
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert main(["run", "--config", str(config_path)]) == 4
+    assert "MISSING_PUSH_TOKEN" in capsys.readouterr().err

@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opamp.info/schemas/signal-generator-opamp-sim/v1.json",
+  "title": "SignalGenerator OpAMP simulator adapter configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "mode"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "mode": {"enum": ["supervised", "unified_quart"]},
+    "failure_policy": {"enum": ["isolate", "fail_host"], "default": "isolate"},
+    "quart": {"$ref": "#/$defs/quart"},
+    "signal_generator_runtimes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/runtime"},
+      "default": []
+    },
+    "instances": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/instance"},
+      "default": []
+    },
+    "supervised": {"$ref": "#/$defs/supervised"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"mode": {"const": "unified_quart"}}},
+      "then": {"required": ["quart", "signal_generator_runtimes", "instances"]}
+    },
+    {
+      "if": {"properties": {"mode": {"const": "supervised"}}},
+      "then": {"required": ["supervised"]}
+    }
+  ],
+  "$defs": {
+    "quart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host", "port"],
+      "properties": {
+        "host": {"type": "string", "minLength": 1},
+        "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "workers": {"const": 1, "default": 1}
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "config_path", "route_prefix"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "config_path": {"type": "string", "minLength": 1},
+        "route_prefix": {"type": "string", "pattern": "^/[^/].*"}
+      }
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["service_instance_uid"],
+      "properties": {
+        "service_instance_uid": {"type": "string", "minLength": 1},
+        "client_version": {"type": "string", "default": "scripted"},
+        "config_version": {"type": "string", "default": ""}
+      }
+    },
+    "instance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "consumer_config_path", "responses_path", "identity"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "consumer_config_path": {"type": "string", "minLength": 1},
+        "responses_path": {"type": "string", "minLength": 1},
+        "signal_generator_runtime": {"type": "string", "minLength": 1},
+        "status_port": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "identity": {"$ref": "#/$defs/identity"}
+      }
+    },
+    "supervised": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["config_path"],
+      "properties": {
+        "config_path": {"type": "string", "minLength": 1},
+        "executable_path": {"type": "string", "default": "signal-generator"},
+        "health_url": {"type": "string", "format": "uri"},
+        "shutdown_timeout_seconds": {"type": "number", "exclusiveMinimum": 0}
+      }
+    }
+  }
+}

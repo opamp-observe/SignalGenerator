@@ -1,8 +1,8 @@
 # SignalGenerator Python design
 
 This folder defines the design for a Python successor to
-[mp3monster/LogGenerator](https://github.com/mp3monster/LogGenerator). No runtime implementation
-should begin until these documents have been reviewed.
+[mp3monster/LogGenerator](https://github.com/mp3monster/LogGenerator). The accepted design is being
+implemented through the phased gates below.
 
 ## Documents
 
@@ -24,10 +24,12 @@ should begin until these documents have been reviewed.
 - [Log compatibility](log_compatibility.md): implemented original behavior and deliberate Python
   differences.
 - [Migration guide](migration_guide.md): legacy property conversion and upgrade checks.
+- [Metrics replay operations](metrics_replay.md): JSONL replay, pull routes, Pushgateway delivery,
+  EOF behavior, diagnostics, and the NGINX container demonstration.
 
 ## Design status
 
-Status: **accepted; implementation in progress through Phase 2**
+Status: **accepted; Phases 1 through 6 implemented**
 
 The design deliberately separates five concerns:
 

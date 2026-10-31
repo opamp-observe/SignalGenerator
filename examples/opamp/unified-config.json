@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "mode": "unified_quart",
+  "failure_policy": "isolate",
+  "quart": {
+    "host": "0.0.0.0",
+    "port": 9108,
+    "workers": 1
+  },
+  "signal_generator_runtimes": [
+    {
+      "id": "nginx-a",
+      "config_path": "../metrics/config.json",
+      "route_prefix": "/signal-generator/nginx-a"
+    }
+  ],
+  "instances": [
+    {
+      "name": "simulator-a",
+      "consumer_config_path": "consumer.json",
+      "responses_path": "responses.json",
+      "signal_generator_runtime": "nginx-a",
+      "identity": {
+        "service_instance_uid": "simulator-a",
+        "client_version": "0.6.0",
+        "config_version": "nginx-demo-1"
+      }
+    }
+  ]
+}

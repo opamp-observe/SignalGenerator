@@ -1,0 +1,40 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+
+# Tool caches and reports
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Editors / OS
+.idea/
+.DS_Store
+
+# Test and runtime artifacts
+test-results/
+*.log
+*.pem
+*.pub
+*.key
+
+# Internal working material
+dev-notes/
+*.backup*
+
+.vscode/
+
+*.code-workspace

@@ -104,3 +104,18 @@ def test_version_uses_argparse_contract(capsys: pytest.CaptureFixture[str]) -> N
         main(["--version"])
     assert exit_info.value.code == 0
     assert capsys.readouterr().out.startswith("signal-generator ")
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    (
+        "examples/logs/basic/config.json",
+        "examples/logs/multiline/config.json",
+        "examples/metrics/config.json",
+        "examples/metrics/container-config.json",
+    ),
+)
+def test_checked_in_examples_pass_full_validation(relative_path: str) -> None:
+    """Every runnable checked-in configuration passes schema, semantic, and source validation."""
+
+    assert main(["validate", "--config", relative_path, "--format", "json"]) == 0

@@ -33,6 +33,7 @@ from signal_generator.constants import (
     EXIT_VALIDATION,
 )
 from signal_generator.logs.scheduler import OutputStartupError, ReplayError
+from signal_generator.metrics.push import PushConfigurationError
 
 COMMAND_RUN = "run"
 COMMAND_VALIDATE = "validate"
@@ -170,7 +171,7 @@ def _run_command(arguments: argparse.Namespace) -> int:
     except ConfigurationLoadError as error:
         print(str(error), file=sys.stderr)
         return EXIT_VALIDATION
-    except (ApplicationStartupError, OutputStartupError, OSError) as error:
+    except (ApplicationStartupError, OutputStartupError, PushConfigurationError, OSError) as error:
         print(str(error), file=sys.stderr)
         return EXIT_STARTUP
     except (ReplayError, ValueError) as error:

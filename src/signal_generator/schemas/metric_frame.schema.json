@@ -9,21 +9,106 @@
     "frame": {"type": ["integer", "string"]},
     "observed_at": {"type": "string", "format": "date-time"},
     "metadata": {"type": "object"},
-    "metrics": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["name", "type", "help", "samples"],
-        "properties": {
-          "name": {"type": "string", "pattern": "^[a-zA-Z_:][a-zA-Z0-9_:]*$", "not": {"pattern": "^signal_generator_"}},
-          "type": {"enum": ["counter", "gauge", "histogram", "summary", "info", "untyped"]},
-          "help": {"type": "string"},
-          "unit": {"type": "string"},
-          "samples": {"type": "array", "minItems": 1, "items": {"type": "object"}}
-        }
+    "metrics": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/family"}}
+  },
+  "$defs": {
+    "labels": {
+      "type": "object",
+      "propertyNames": {"pattern": "^(?!__)[a-zA-Z_][a-zA-Z0-9_]*$"},
+      "additionalProperties": {"type": "string"}
+    },
+    "number": {
+      "oneOf": [{"type": "number"}, {"enum": ["NaN", "+Inf", "-Inf"]}]
+    },
+    "scalar_sample": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value"],
+      "properties": {"labels": {"$ref": "#/$defs/labels"}, "value": {"$ref": "#/$defs/number"}}
+    },
+    "info_sample": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["info"],
+      "properties": {
+        "labels": {"$ref": "#/$defs/labels"},
+        "info": {"$ref": "#/$defs/labels", "minProperties": 1}
       }
+    },
+    "histogram_sample": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["buckets", "sum", "count"],
+      "properties": {
+        "labels": {"$ref": "#/$defs/labels"},
+        "buckets": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["le", "count"],
+            "properties": {
+              "le": {"$ref": "#/$defs/number"},
+              "count": {"type": "integer", "minimum": 0}
+            }
+          }
+        },
+        "sum": {"type": "number"},
+        "count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "summary_sample": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["quantiles", "sum", "count"],
+      "properties": {
+        "labels": {"$ref": "#/$defs/labels"},
+        "quantiles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["quantile", "value"],
+            "properties": {
+              "quantile": {"type": "number", "minimum": 0, "maximum": 1},
+              "value": {"$ref": "#/$defs/number"}
+            }
+          }
+        },
+        "sum": {"type": "number"},
+        "count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "family": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "type", "help", "samples"],
+      "properties": {
+        "name": {"type": "string", "pattern": "^[a-zA-Z_:][a-zA-Z0-9_:]*$", "not": {"pattern": "^signal_generator_"}},
+        "type": {"enum": ["counter", "gauge", "histogram", "summary", "info", "untyped"]},
+        "help": {"type": "string"},
+        "unit": {"type": "string"},
+        "samples": {"type": "array", "minItems": 1}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"type": {"enum": ["counter", "gauge", "untyped"]}}},
+          "then": {"properties": {"samples": {"items": {"$ref": "#/$defs/scalar_sample"}}}}
+        },
+        {
+          "if": {"properties": {"type": {"const": "info"}}},
+          "then": {"properties": {"samples": {"items": {"$ref": "#/$defs/info_sample"}}}}
+        },
+        {
+          "if": {"properties": {"type": {"const": "histogram"}}},
+          "then": {"properties": {"samples": {"items": {"$ref": "#/$defs/histogram_sample"}}}}
+        },
+        {
+          "if": {"properties": {"type": {"const": "summary"}}},
+          "then": {"properties": {"samples": {"items": {"$ref": "#/$defs/summary_sample"}}}}
+        }
+      ]
     }
   }
 }

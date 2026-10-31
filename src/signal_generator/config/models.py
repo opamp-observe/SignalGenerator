@@ -18,7 +18,12 @@ from signal_generator.constants import (
     DEFAULT_DATETIME_FORMAT,
     DEFAULT_INTERVAL_MILLISECONDS,
     DEFAULT_LOG_LEVEL,
+    DEFAULT_MAXIMUM_LINE_BYTES,
+    DEFAULT_MAXIMUM_RETRY_BACKOFF_SECONDS,
+    DEFAULT_MAXIMUM_SAMPLES_PER_FRAME,
+    DEFAULT_METRICS_PORT,
     DEFAULT_OUTPUT_TIMEOUT_SECONDS,
+    DEFAULT_PUSH_INTERVAL_SECONDS,
     DEFAULT_RETRY_ATTEMPTS,
     DEFAULT_RETRY_BACKOFF_SECONDS,
     DEFAULT_SHUTDOWN_TIMEOUT_SECONDS,
@@ -74,6 +79,7 @@ class RetryConfig:
 
     maximum_attempts: int = DEFAULT_RETRY_ATTEMPTS
     initial_backoff_seconds: float = DEFAULT_RETRY_BACKOFF_SECONDS
+    maximum_backoff_seconds: float = DEFAULT_MAXIMUM_RETRY_BACKOFF_SECONDS
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,6 +117,73 @@ class LogsConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class MetricSourceConfig:
+    """Metric JSON Lines source and bounded loading controls."""
+
+    path: Path
+    encoding: str = "utf-8"
+    eof: str = "loop"
+    maximum_line_bytes: int = DEFAULT_MAXIMUM_LINE_BYTES
+    maximum_samples_per_frame: int = DEFAULT_MAXIMUM_SAMPLES_PER_FRAME
+
+
+@dataclass(frozen=True, slots=True)
+class PullConfig:
+    """Standalone Prometheus exposition endpoint configuration."""
+
+    enabled: bool = False
+    host: str = "127.0.0.1"
+    port: int = DEFAULT_METRICS_PORT
+    path: str = "/metrics"
+    include_self_metrics: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class BasicAuthConfig:
+    """Pushgateway basic-auth configuration with environment-backed password."""
+
+    username: str
+    password_env: str
+
+
+@dataclass(frozen=True, slots=True)
+class TlsConfig:
+    """Pushgateway server-certificate verification configuration."""
+
+    verify: bool = True
+    ca_file: Path | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PushConfig:
+    """Scheduled Pushgateway delivery configuration."""
+
+    enabled: bool = False
+    protocol: str = "pushgateway"
+    url: str | None = None
+    job: str | None = None
+    grouping_key: dict[str, str] = field(default_factory=dict)
+    interval_seconds: float = DEFAULT_PUSH_INTERVAL_SECONDS
+    timeout_seconds: float = DEFAULT_OUTPUT_TIMEOUT_SECONDS
+    method: str = "replace"
+    basic_auth: BasicAuthConfig | None = None
+    bearer_token_env: str | None = None
+    tls: TlsConfig = field(default_factory=TlsConfig)
+    retry: RetryConfig = field(default_factory=RetryConfig)
+    use_source_timing: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class MetricsConfig:
+    """Complete metric source, pull, and push replay configuration."""
+
+    enabled: bool
+    source: MetricSourceConfig | None = None
+    pull: PullConfig = field(default_factory=PullConfig)
+    push: PushConfig = field(default_factory=PushConfig)
+
+
+@dataclass(frozen=True, slots=True)
 class AppConfig:
     """Top-level typed configuration required by implemented phases."""
 
@@ -118,5 +191,5 @@ class AppConfig:
     runtime: RuntimeConfig
     deployment: DeploymentConfig
     logs: LogsConfig | None
-    metrics: dict[str, Any] | None
+    metrics: MetricsConfig | None
     traces: dict[str, Any] | None

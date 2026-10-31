@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "runtime": {"log_level": "DEBUG", "shutdown_timeout_seconds": 10},
+  "metrics": {
+    "enabled": true,
+    "source": {"path": "frames.jsonl", "eof": "loop"},
+    "pull": {
+      "enabled": true,
+      "host": "0.0.0.0",
+      "port": 9108,
+      "path": "/metrics",
+      "include_self_metrics": true
+    },
+    "push": {"enabled": false}
+  }
+}

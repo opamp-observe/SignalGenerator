@@ -19,14 +19,20 @@ from typing import Any
 
 from signal_generator.config.models import (
     AppConfig,
+    BasicAuthConfig,
     DeploymentConfig,
     LogDefaults,
     LogsConfig,
     LogSourceConfig,
+    MetricsConfig,
+    MetricSourceConfig,
     OutputConfig,
+    PullConfig,
+    PushConfig,
     ReplayConfig,
     RetryConfig,
     RuntimeConfig,
+    TlsConfig,
 )
 from signal_generator.constants import (
     ENV_DEPLOYMENT_MODE,
@@ -42,6 +48,8 @@ from signal_generator.constants import (
     KEY_METRICS,
     KEY_OUTPUTS,
     KEY_PATH,
+    KEY_PULL,
+    KEY_PUSH,
     KEY_REPLAY,
     KEY_RUNTIME,
     KEY_SCHEMA_VERSION,
@@ -128,6 +136,30 @@ def load_configuration(
     return LoadedConfiguration(config_path, effective, _build_model(effective, config_path.parent))
 
 
+def load_configuration_mapping(
+    document: Mapping[str, Any],
+    *,
+    base_path: str | Path,
+    environ: Mapping[str, str] | None = None,
+    validate: bool = True,
+) -> LoadedConfiguration:
+    """Load an in-memory configuration for embedded and remote-config integrations."""
+
+    resolved_base = Path(base_path).expanduser().resolve()
+    source = resolved_base / "<in-memory-config>"
+    if validate:
+        from signal_generator.config.validation import (  # pylint: disable=import-outside-toplevel
+            validate_config_mapping,
+        )
+
+        result = validate_config_mapping(document, base_path=resolved_base, environ=environ)
+        if not result.valid:
+            messages = "; ".join(diagnostic.message for diagnostic in result.errors)
+            raise ConfigurationLoadError(messages)
+    effective = apply_environment_overrides(document, environ)
+    return LoadedConfiguration(source, effective, _build_model(effective, resolved_base))
+
+
 def _build_model(document: Mapping[str, Any], base_path: Path) -> AppConfig:
     """Build immutable runtime models after structural and semantic validation succeeds."""
 
@@ -140,8 +172,50 @@ def _build_model(document: Mapping[str, Any], base_path: Path) -> AppConfig:
         runtime=RuntimeConfig(**runtime_data),
         deployment=DeploymentConfig(**deployment_data),
         logs=logs,
-        metrics=copy.deepcopy(document.get(KEY_METRICS)),
+        metrics=_build_metrics(document.get(KEY_METRICS), base_path),
         traces=copy.deepcopy(document.get(KEY_TRACES)),
+    )
+
+
+def _build_metrics(document: Any, base_path: Path) -> MetricsConfig | None:
+    """Build metric source and transport models with resolved local paths."""
+
+    if not isinstance(document, Mapping):
+        return None
+    metric_data = dict(document)
+    source_data = dict(metric_data.get(KEY_SOURCE, {}))
+    source = None
+    if source_data:
+        source_path = Path(source_data[KEY_PATH]).expanduser()
+        source_data[KEY_PATH] = (
+            source_path if source_path.is_absolute() else (base_path / source_path).resolve()
+        )
+        source = MetricSourceConfig(**source_data)
+    pull = PullConfig(**dict(metric_data.get(KEY_PULL, {})))
+    push = _build_push(dict(metric_data.get(KEY_PUSH, {})), base_path)
+    return MetricsConfig(
+        enabled=bool(metric_data.get("enabled", False)),
+        source=source,
+        pull=pull,
+        push=push,
+    )
+
+
+def _build_push(document: dict[str, Any], base_path: Path) -> PushConfig:
+    """Build nested authentication, TLS, and retry controls for Pushgateway."""
+
+    basic_auth_data = document.pop("basic_auth", None)
+    basic_auth = BasicAuthConfig(**basic_auth_data) if basic_auth_data else None
+    tls_data = dict(document.pop("tls", {}))
+    if tls_data.get("ca_file"):
+        ca_path = Path(tls_data["ca_file"]).expanduser()
+        tls_data["ca_file"] = ca_path if ca_path.is_absolute() else (base_path / ca_path).resolve()
+    retry = RetryConfig(**dict(document.pop("retry", {})))
+    return PushConfig(
+        **document,
+        basic_auth=basic_auth,
+        tls=TlsConfig(**tls_data),
+        retry=retry,
     )
 
 
