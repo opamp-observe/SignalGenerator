@@ -60,4 +60,6 @@ python scripts/release_artifacts.py dist/phase5-6 dist/phase5-6-adapter --output
 
 See [performance limits](docs/performance_limits.md), [security hardening](docs/security_hardening.md),
 the [compatibility matrix](docs/compatibility_matrix.md), and the signed-tag
-[release process](docs/release_process.md).
+[release process](docs/release_process.md). The
+[implementation verification](docs/implementation_verification.md) records delivered evidence and
+the [roadmap](docs/roadmap.md) is the single register for planned enhancements.

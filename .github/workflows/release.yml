@@ -73,7 +73,8 @@ jobs:
         env:
           COMPONENT: ${{ needs.verify-tag.outputs.component }}
         run: |
-          export SOURCE_DATE_EPOCH="$(git log -1 --pretty=%ct)"
+          SOURCE_DATE_EPOCH="$(git log -1 --pretty=%ct)"
+          export SOURCE_DATE_EPOCH
           mkdir -p release-dist/python release-dist/evidence
           if [[ "${COMPONENT}" = "core" ]]; then
             python -m build --outdir release-dist/python .

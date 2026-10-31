@@ -96,7 +96,8 @@ an incidental process working directory.
 At least one of `logs.enabled` or `metrics.enabled` must be true.
 
 Unknown fields are rejected in strict mode. The normal `run` command uses strict mode so a typo
-cannot silently disable intended behavior. A future migration command may use permissive parsing.
+cannot silently disable intended behavior. A permissive migration mode is tracked as
+[SG-013](roadmap.md).
 
 ## 3. Runtime section
 
@@ -228,7 +229,7 @@ service beyond the local host.
 | `grouping_key` | object | `{}` | Stable grouping labels. |
 | `interval_seconds` | number | Required | Delay after each successful push. |
 | `timeout_seconds` | number | `5` | Per-request timeout. |
-| `method` | string | `replace` | `replace` uses PUT; future `add` may use POST. |
+| `method` | string | `replace` | `replace` uses PUT; additive POST is [SG-014](roadmap.md). |
 | `basic_auth.username` | string | unset | Prefer environment injection. |
 | `basic_auth.password_env` | string | unset | Environment variable containing the password. |
 | `bearer_token_env` | string | unset | Environment variable containing a token. |
@@ -486,6 +487,6 @@ The packaged schema is available through `importlib.resources`, allowing editors
 and external tooling to validate the exact schema shipped with the installed wheel.
 
 Schema version 1 includes a reserved `traces` object with `enabled: false` and no payload fields.
-This makes the future namespace explicit without accepting configurations that imply unsupported
+This reserves the namespace for [SG-012](roadmap.md) without accepting configurations that imply unsupported
 trace replay.
 

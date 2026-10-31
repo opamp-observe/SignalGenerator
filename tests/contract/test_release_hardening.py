@@ -121,3 +121,27 @@ def test_cloud_workflow_selects_protected_aws_or_azure_runner() -> None:
         "if: always()",
     )
     assert all(fragment in workflow for fragment in required_fragments)
+
+
+def test_roadmap_is_the_single_future_work_register() -> None:
+    """Audit gaps and requested OpAMP file actions must remain explicit in one roadmap."""
+
+    roadmap = Path("docs/roadmap.md").read_text(encoding="utf-8")
+    implementation_plan = Path("docs/implementation_plan.md").read_text(encoding="utf-8")
+    required_items = (
+        "SG-001",
+        "SG-002",
+        "SG-003",
+        "SG-017",
+        "SG-018",
+        "stage_bundle",
+        "validate_bundle",
+        "activate_bundle",
+        "configuration plus referenced log, metric JSONL",
+        "integrations/opamp-simulator",
+        "signal-generator-opamp-sim-vX.Y.Z",
+        "docs/library_usage.md",
+    )
+    assert all(item in roadmap for item in required_items)
+    assert "## 12. Deferred features" not in implementation_plan
+    assert "[roadmap.md](roadmap.md)" in implementation_plan

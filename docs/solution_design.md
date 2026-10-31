@@ -31,8 +31,8 @@ using a versioned configuration model and replaceable Python interfaces.
 - Keep OpAMP-specific composition in a separately built adapter module; SignalGenerator core and
   `opamp-observe/opamp-core` contain no SignalGenerator-specific cross-project extension logic.
 - Provide strong unit, contract, integration, and container end-to-end coverage.
-- Reserve stable interfaces and configuration namespaces for future trace-payload replay without
-  claiming trace support in the first release.
+- Reserve stable interfaces and configuration namespaces for trace-payload replay under
+  [SG-012](roadmap.md), without claiming current trace support.
 - Replay every enabled signal type from one service and one coordinated lifecycle.
 - Provide documented reference configurations for common log formats.
 - Generate operational SignalGenerator metrics and allow them to be included in test output.
@@ -102,7 +102,7 @@ The application core must not depend on its HTTP host. `SignalGeneratorRuntime` 
 sources, cursors, schedulers, and lifecycle. A standalone adapter supplies its own HTTP server; an
 embedded adapter registers routes and lifecycle hooks on the unified consumer-simulator Quart app.
 
-## 6. Proposed package structure
+## 6. Package structure
 
 ```text
 src/signal_generator/
@@ -284,8 +284,8 @@ tool.
 - Blank lines are ignored; comments are not allowed because the file is JSON Lines.
 - Validation errors include the path, one-based line number, and field location.
 - Frames are indexed once so independent cursors can replay the same data.
-- The first implementation may keep validated frames in memory. A later indexed-file store may be
-  added for very large inputs without changing the cursor contract.
+- The first implementation keeps validated frames in memory. Indexed storage is tracked as
+  [SG-007](roadmap.md) without changing the cursor contract.
 - At least one frame is required when pull or push is enabled.
 
 ### 9.2 Stable metric descriptors
@@ -325,8 +325,8 @@ Pull and push use separate cursors by default. This prevents a scheduled push fr
 Prometheus scrape to skip a frame, and prevents extra diagnostic scrapes from changing the pushed
 sequence.
 
-A future shared-cursor mode could be added, but it is intentionally excluded from the first release
-because its race behavior is difficult to reason about and test.
+An optional shared-cursor mode is tracked as [SG-006](roadmap.md); it is excluded from the first
+release because its race behavior is difficult to reason about and test.
 
 ### 9.5 End-of-file policy
 
@@ -349,10 +349,11 @@ A custom collector can render the exact counter, gauge, histogram, summary, info
 represented by the current frame.
 
 Source timestamps are metadata by default. Prometheus should timestamp samples at scrape/ingest
-time. Explicit sample timestamps can be considered later if a proven use case justifies the stale
-sample and out-of-order risks.
+time. Explicit sample timestamps are [SG-015](roadmap.md) and require a proven use case that
+justifies the stale-sample and out-of-order risks.
 
-The endpoint uses Prometheus/OpenMetrics content negotiation supplied by the client library.
+Prometheus text exposition is implemented. Explicit OpenMetrics negotiation is
+[SG-002](roadmap.md).
 
 ### 9.7 Push semantics
 
@@ -370,8 +371,8 @@ The push scheduler:
 5. Retries the same frame after a bounded exponential backoff on transient failure.
 6. Applies the configured interval between successful pushes.
 
-Direct Prometheus remote write is a separate future adapter because it requires a different wire
-protocol, authentication model, timestamp policy, and dependency set. The push interface must make
+Direct Prometheus remote write is tracked as [SG-004](roadmap.md) because it requires a different
+wire protocol, authentication model, timestamp policy, and dependency set. The push interface makes
 that adapter possible without changing frame loading or scheduling.
 
 ### 9.8 Self-observability
@@ -448,8 +449,8 @@ Initial design targets are:
 - Log scheduling drift below one configured interval for normal local workloads.
 - Bounded memory documented as approximately source-frame size plus parsed representation.
 
-Benchmarks should inform later optimization. Correct sequencing and clear failure behavior take
-priority over speculative micro-optimizations.
+Benchmarks inform [SG-007](roadmap.md) and other optimization work. Correct sequencing and clear
+failure behavior take priority over speculative micro-optimizations.
 
 ## 14. Deployment modes
 
@@ -529,8 +530,8 @@ offset is applied.
 
 Looping creates a new cycle epoch. The next cycle begins after the previous cycle's final scheduled
 timestamp plus the configured loop gap. It must not move timestamps backwards. Demand-driven metric
-scrapes remain outside the merge scheduler; scheduled metric pushes may use it when frames include
-`observed_at` and `use_source_timing` is enabled.
+scrapes remain outside the merge scheduler. Cross-source merge behavior, including scheduled metric
+pushes with `observed_at`, is tracked as [SG-001](roadmap.md).
 
 SignalGenerator self-metrics are always available as operational metrics. Configuration may include
 them in the test exposition registry, but recursive measurements such as scrape counters are

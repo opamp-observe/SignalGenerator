@@ -251,7 +251,7 @@ library API.
 ## 4. Separate adapter distribution
 
 The adapter is an independently versioned Python distribution with its own build, tests, wheel, and
-container entry point. Proposed repository layout:
+container entry point. Implemented repository layout:
 
 ```text
 integrations/opamp-simulator/
@@ -311,7 +311,7 @@ missing-extra error when that extra is absent.
 `opamp-core`'s existing installed-plugin discovery loads the supervised entry point without a built-in
 registry change. The unified Quart console command belongs only to the adapter distribution.
 
-## 5. Proposed consumer configuration
+## 5. Consumer configuration
 
 ```json
 {
@@ -343,7 +343,7 @@ Configuration precedence for adapter-owned settings:
 3. `consumer.signal_generator` block.
 4. Adapter default.
 
-Proposed environment variables:
+Environment variables:
 
 - `OPAMP_SIGNAL_GENERATOR_EXECUTABLE_PATH`
 - `OPAMP_SIGNAL_GENERATOR_HEALTH_HOST`
@@ -414,7 +414,7 @@ must preserve `opamp-core`'s existing previous-config and remote-config status c
 
 ## 7. Capabilities
 
-Proposed supported capabilities:
+Supported capabilities:
 
 - All mandatory consumer capabilities.
 - `ReportsHeartbeat`.

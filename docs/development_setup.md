@@ -73,6 +73,7 @@ python -m ruff check src tests scripts
 python -m pylint src/signal_generator
 python -m pytest -q
 python -m xenon --max-absolute B --max-modules A --max-average A src/signal_generator
+docker run --rm -v "${PWD}:/repo" -w /repo rhysd/actionlint:latest
 
 cd integrations/opamp-simulator
 python -m ruff check src tests

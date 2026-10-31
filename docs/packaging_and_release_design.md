@@ -39,7 +39,7 @@ sufficient for supervised mode.
 The adapter imports only published APIs and declares every directly imported distribution. No
 SignalGenerator-specific dependency or entry point is added to an `opamp-core` TOML file.
 
-## 3. Proposed core `pyproject.toml` shape
+## 3. Core `pyproject.toml` shape
 
 The exact lower bounds are confirmed during implementation, but the structure is fixed:
 
@@ -119,8 +119,8 @@ max-complexity = 10
 
 The `dev` extra intentionally repeats the complete tool set so `pip install -e ".[dev]"` remains a
 portable bootstrap command. A metadata contract test compares `dev` with the union of the narrower
-extras so version floors cannot drift silently. A PEP 735 dependency group may replace this
-duplication after the supported installer baseline handles it consistently.
+extras so version floors cannot drift silently. PEP 735 migration is tracked as
+[SG-016](roadmap.md).
 
 Quart stays optional. The base wheel supports CLI/standalone use without installing a web
 framework. `signal-generator[quart]` adds the runtime attachment API consumed by the separate

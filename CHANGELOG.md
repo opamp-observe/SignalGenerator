@@ -37,3 +37,5 @@
 - A compatibility matrix plus operational security, performance, and release documentation.
 - A complete user guide, separate development setup, and a GitHub-dispatchable regression suite
   for labeled ephemeral AWS or Azure runners.
+- A phase-by-phase implementation verification and consolidated roadmap, including a detailed OpAMP
+  custom-action design for atomic configuration and test-data bundle delivery.

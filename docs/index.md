@@ -30,6 +30,10 @@ implemented through the phased gates below.
   modes, and troubleshooting.
 - [Development setup](development_setup.md): environment bootstrap, local quality gates, package
   builds, and AWS/Azure GitHub regression runners.
+- [Implementation verification](implementation_verification.md): phase-by-phase evidence and
+  explicit audit exceptions.
+- [Roadmap](roadmap.md): the single register for planned enhancements, including OpAMP scenario-file
+  custom actions.
 - [Performance limits](performance_limits.md): supported workload envelope and reproducible replay
   benchmark.
 - [Compatibility matrix](compatibility_matrix.md): tested package, Python, Quart, and deployment
@@ -41,7 +45,11 @@ implemented through the phased gates below.
 
 ## Design status
 
-Status: **accepted; Phases 1 through 7 implemented**
+Status: **accepted; Phases 1 through 7 delivered and audited**
+
+The [implementation verification](implementation_verification.md) confirms the requested first
+release behavior and identifies two broader design gaps—multi-source merged scheduling and explicit
+OpenMetrics negotiation—as priority [roadmap](roadmap.md) work.
 
 The design deliberately separates five concerns:
 

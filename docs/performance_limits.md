@@ -21,8 +21,8 @@ The supported initial envelope is:
 
 The frame-count limit is not a hard parser cap because record size and metric cardinality determine
 the real memory cost. Operators should leave at least twice the benchmarked peak allocation as
-container headroom. Larger sources should be split into scenarios; indexed streaming storage is a
-future, explicitly deferred feature.
+container headroom. Larger sources should be split into scenarios; indexed streaming storage is
+tracked as [SG-007](roadmap.md).
 
 ## Reproducible benchmark
 

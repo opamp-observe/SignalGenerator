@@ -16,5 +16,5 @@ Deliberate differences are:
   silently ignored.
 - Output failures use explicit `fail`, `retry`, or `continue` policies.
 
-Metric replay, HTTP health endpoints, and containers belong to later implementation phases and are
+Metric replay, HTTP health endpoints, and containers were delivered in subsequent phases and are
 not implied by the Phase 2 runtime.

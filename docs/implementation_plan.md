@@ -1,5 +1,9 @@
 # Implementation plan
 
+Verification status: audited against the implementation on 2026-10-31. Phase deliverables are
+implemented, with two broader design/exit statements tracked explicitly as
+[SG-001 and SG-002](roadmap.md) in the [verification report](implementation_verification.md).
+
 ## 1. Delivery rule
 
 No runtime implementation should begin until the design documents in this folder are accepted.
@@ -74,8 +78,9 @@ Exit gate:
 
 ## 5. Phase 3: metric pull replay
 
-Implementation status: **implemented; pull sequencing, concurrency, lifecycle-route, exposition,
-and container gates verified**.
+Implementation status: **implemented for the required Prometheus scraper behavior; pull sequencing,
+concurrency, lifecycle-route, exposition, and container gates verified**. Explicit OpenMetrics
+content negotiation remains [SG-002](roadmap.md#4-sg-002-openmetrics-negotiation).
 
 Deliverables:
 
@@ -88,7 +93,7 @@ Deliverables:
 
 Exit gate:
 
-- Every metric family renders valid Prometheus/OpenMetrics text.
+- Every metric family renders valid Prometheus text. Explicit OpenMetrics negotiation is SG-002.
 - Concurrency and sequence tests pass without sleep-based races.
 - Health/readiness calls demonstrably do not advance frames.
 - Pull container test passes.
@@ -242,7 +247,7 @@ Implementation evidence:
 | Metric descriptors change between frames | Invalid Prometheus series | Validate all frames before readiness. |
 | Counter values reset | Misleading assumptions | Replay exact snapshot and document restart semantics. |
 | Push interpreted as direct Prometheus text ingest | Integration failure | Name initial protocol `pushgateway`; keep remote write separate. |
-| Large JSONL consumes excess memory | Startup/memory pressure | Limits first; indexed file store can replace in-memory store later. |
+| Large JSONL consumes excess memory | Startup/memory pressure | Limits first; indexed storage is [SG-007](roadmap.md). |
 | Legacy datetime formats differ | Migration errors | Explicit translator, conversion diagnostics, compatibility fixtures. |
 | Adapter code leaks into either dependency | Tight coupling | Independent distribution, direct dependencies, and wheel-content contracts. |
 | Remote config breaks running demo | Downtime | Candidate validation, atomic replace, readiness check, rollback. |
@@ -253,18 +258,12 @@ Implementation evidence:
 | Multiple Quart workers duplicate replay | Duplicate agents and signals | Enforce one worker and explicit instance partitioning. |
 | Wheel metadata and automation drift | Broken installs/releases | Root TOML source of truth and artifact contract tests. |
 
-## 12. Deferred features
+## 12. Roadmap
 
-These are intentionally outside the initial implementation unless promoted through design review:
-
-- Prometheus remote-write push adapter.
-- Hot reload without process restart.
-- Shared pull/push cursor.
-- Streaming/indexed frame storage for very large files.
-- Random or formula-based synthetic metric generation.
-- Browser UI.
-- Authentication on the local pull endpoint.
-- Distributed cursor coordination across replicas.
+All planned enhancements, deferred features, and audit gaps are maintained in
+[roadmap.md](roadmap.md). This includes Prometheus remote write, hot reload, cursor modes, large-file
+storage, synthetic metrics, UI/authentication, distributed coordination, trace replay, and OpAMP
+custom action handlers for receiving scenario configuration and test-data files.
 
 ## 13. Definition of done
 
@@ -273,6 +272,8 @@ The project is complete for the requested scope when:
 - The Python tool reproduces the agreed log replay features.
 - Metric JSONL frames replay deterministically by scrape and configured push interval.
 - Timestamped signals are time-shifted, merged, and looped using the documented ordering rules.
+  Adjacent single-source timing is implemented; cross-source envelopes and merged ordering remain
+  [SG-001](roadmap.md#3-sg-001-multi-source-scheduled-replay).
 - Pull and Pushgateway flows are demonstrated with NGINX-style metrics.
 - Unit, contract, integration, and container end-to-end tests pass.
 - Coverage and cyclomatic-complexity gates pass.
