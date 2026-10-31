@@ -54,7 +54,7 @@ services:
       context: ../../..
       dockerfile: integrations/opamp-simulator/Dockerfile
       additional_contexts:
-        opamp_core: ../../../../opamp2
+        opamp_core: ${OPAMP_CORE_CONTEXT:-../../../../opamp2}
     environment:
       APP_ENABLE_DEV_FEATURES: "true"
     ports: ["19110:9108"]

@@ -17,6 +17,11 @@ dependencies = [
   "prometheus-client>=0.21",
 ]
 
+[project.urls]
+Repository = "https://github.com/opamp-observe/SignalGenerator-Python"
+Homepage = "https://opamp.info"
+Blog = "https://opamp.info"
+
 [project.optional-dependencies]
 quart = ["quart>=0.19.4"]
 test = [

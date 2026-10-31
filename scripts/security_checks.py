@@ -14,11 +14,13 @@ import sys
 from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
+ADAPTER_ROOT = REPOSITORY_ROOT / "integrations" / "opamp-simulator"
 COMMANDS = (
-    ("ruff", "check", "src", "tests", "scripts/security_checks.py"),
-    ("pylint", "src/signal_generator"),
-    ("pytest", "-q"),
+    (REPOSITORY_ROOT, "ruff", "check", "src", "tests", "scripts"),
+    (REPOSITORY_ROOT, "pylint", "src/signal_generator"),
+    (REPOSITORY_ROOT, "pytest", "-q"),
     (
+        REPOSITORY_ROOT,
         "xenon",
         "--max-absolute",
         "B",
@@ -28,18 +30,32 @@ COMMANDS = (
         "A",
         "src/signal_generator",
     ),
-    ("pip_audit", "--progress-spinner", "off", "--skip-editable"),
+    (ADAPTER_ROOT, "ruff", "check", "src", "tests"),
+    (ADAPTER_ROOT, "pylint", "src/signal_generator_opamp_sim"),
+    (ADAPTER_ROOT, "pytest", "-q"),
+    (
+        ADAPTER_ROOT,
+        "xenon",
+        "--max-absolute",
+        "B",
+        "--max-modules",
+        "A",
+        "--max-average",
+        "A",
+        "src/signal_generator_opamp_sim",
+    ),
+    (REPOSITORY_ROOT, "pip_audit", "--progress-spinner", "off", "--skip-editable"),
 )
 
 
 def main() -> int:
     """Run every gate with the current interpreter and stop at the first failure."""
 
-    for module_name, *arguments in COMMANDS:
+    for working_directory, module_name, *arguments in COMMANDS:
         command = [sys.executable, "-m", module_name, *arguments]
         print(f"Running: {' '.join(command)}", flush=True)
         # Command modules and arguments are the fixed allow-list above, never user input.
-        completed = subprocess.run(command, cwd=REPOSITORY_ROOT, check=False)  # noqa: S603
+        completed = subprocess.run(command, cwd=working_directory, check=False)  # noqa: S603
         if completed.returncode:
             return completed.returncode
     return 0

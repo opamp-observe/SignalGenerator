@@ -1,0 +1,252 @@
+# Copyright 2026 opamp.info
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+name: signed release
+
+on:
+  push:
+    tags:
+      - "v*"
+      - "signal-generator-opamp-sim-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      component: ${{ steps.release.outputs.component }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: release
+        name: Verify signed annotated tag and version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag_object="$(git rev-parse "${GITHUB_REF}^{tag}")"
+          verified="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${tag_object}" --jq '.verification.verified')"
+          test "${verified}" = "true"
+          if [[ "${GITHUB_REF_NAME}" == signal-generator-opamp-sim-v* ]]; then
+            component="adapter"
+            version="${GITHUB_REF_NAME#signal-generator-opamp-sim-v}"
+            expected="$(python -c "import tomllib; print(tomllib.load(open('integrations/opamp-simulator/pyproject.toml','rb'))['project']['version'])")"
+          else
+            component="core"
+            version="${GITHUB_REF_NAME#v}"
+            expected="$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")"
+          fi
+          test "${version}" = "${expected}"
+          echo "component=${component}" >> "${GITHUB_OUTPUT}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+  build:
+    needs: verify-tag
+    runs-on: ubuntu-latest
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6
+        with:
+          repository: opamp-observe/opamp-core
+          path: opamp-core
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install release toolchain and local compatibility dependencies
+        run: |
+          python -m pip install --upgrade "pip>=26.2" "setuptools>=84.1"
+          python -m pip install -e ".[dev]" -e opamp-core/consumer -e opamp-core/consumer-sim
+          python -m pip install -e "integrations/opamp-simulator[dev]"
+      - name: Run source, dependency, test, coverage, and complexity gates
+        run: python scripts/security_checks.py
+      - name: Build selected Python distribution
+        env:
+          COMPONENT: ${{ needs.verify-tag.outputs.component }}
+        run: |
+          export SOURCE_DATE_EPOCH="$(git log -1 --pretty=%ct)"
+          mkdir -p release-dist/python release-dist/evidence
+          if [[ "${COMPONENT}" = "core" ]]; then
+            python -m build --outdir release-dist/python .
+          else
+            python -m build --outdir release-dist/python integrations/opamp-simulator
+          fi
+          python -m twine check release-dist/python/*
+      - name: Generate CycloneDX package SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: release-dist/python
+          format: cyclonedx-json
+          output-file: release-dist/evidence/python-distribution.cdx.json
+          upload-artifact: false
+      - name: Generate SHA256SUMS and release manifest
+        run: python scripts/release_artifacts.py release-dist/python release-dist/evidence --output release-dist/evidence
+      - name: Attest Python distributions and release evidence
+        uses: actions/attest@v4
+        with:
+          subject-path: release-dist/**/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-release
+          path: release-dist
+          if-no-files-found: error
+
+  publish-python:
+    needs: [verify-tag, build]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-release
+          path: release-dist
+      - name: Publish with PyPI trusted publishing
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: release-dist/python
+
+  core-image:
+    if: needs.verify-tag.outputs.component == 'core'
+    needs: [verify-tag, build]
+    runs-on: ubuntu-latest
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-buildx-action@v4
+      - id: image
+        name: Set lower-case image name
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "${GITHUB_OUTPUT}"
+      - id: push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.image.outputs.name }}:${{ needs.verify-tag.outputs.version }}
+          build-args: |
+            BUILD_VERSION=${{ needs.verify-tag.outputs.version }}
+            BUILD_REVISION=${{ github.sha }}
+            BUILD_SOURCE=${{ github.server_url }}/${{ github.repository }}
+          provenance: mode=max
+          sbom: true
+      - name: Block critical or high image vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ steps.image.outputs.name }}@${{ steps.push.outputs.digest }}
+          format: sarif
+          output: trivy.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Create image SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.image.outputs.name }}@${{ steps.push.outputs.digest }}
+          format: spdx-json
+          output-file: image.spdx.json
+      - uses: sigstore/cosign-installer@v4.1.2
+      - name: Keyless-sign immutable image digest
+        run: cosign sign --yes "${{ steps.image.outputs.name }}@${{ steps.push.outputs.digest }}"
+      - name: Attest immutable image digest
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ steps.image.outputs.name }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+  adapter-image:
+    if: needs.verify-tag.outputs.component == 'adapter'
+    needs: [verify-tag, build]
+    runs-on: ubuntu-latest
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6
+        with:
+          repository: opamp-observe/opamp-core
+          path: opamp-core
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-buildx-action@v4
+      - id: image
+        name: Set lower-case adapter image name
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}/opamp-simulator" >> "${GITHUB_OUTPUT}"
+      - id: push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: integrations/opamp-simulator/Dockerfile
+          build-contexts: opamp_core=opamp-core
+          push: true
+          tags: ${{ steps.image.outputs.name }}:${{ needs.verify-tag.outputs.version }}
+          build-args: |
+            BUILD_VERSION=${{ needs.verify-tag.outputs.version }}
+            BUILD_REVISION=${{ github.sha }}
+            BUILD_SOURCE=${{ github.server_url }}/${{ github.repository }}
+          provenance: mode=max
+          sbom: true
+      - name: Block critical or high image vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ steps.image.outputs.name }}@${{ steps.push.outputs.digest }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Create image SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.image.outputs.name }}@${{ steps.push.outputs.digest }}
+          format: spdx-json
+          output-file: adapter-image.spdx.json
+      - uses: sigstore/cosign-installer@v4.1.2
+      - name: Keyless-sign immutable image digest
+        run: cosign sign --yes "${{ steps.image.outputs.name }}@${{ steps.push.outputs.digest }}"
+      - name: Attest immutable image digest
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ steps.image.outputs.name }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+  github-release:
+    needs: [verify-tag, build, publish-python]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-release
+          path: release-dist
+      - name: Create immutable release and upload evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --verify-tag --generate-notes
+          gh release upload "${GITHUB_REF_NAME}" release-dist/python/* release-dist/evidence/* --repo "${GITHUB_REPOSITORY}"

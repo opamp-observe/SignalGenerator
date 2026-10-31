@@ -9,6 +9,9 @@ conversion, log replay, scrape-driven metric replay, and scheduled Pushgateway d
 [the design index](docs/index.md), [metrics operations](docs/metrics_replay.md), and the
 [startup script guide](scripts/README.md).
 
+Start with the task-oriented [user guide](docs/user_guide.md). Contributors should use the separate
+[development setup](docs/development_setup.md).
+
 ```text
 signal-generator validate --config examples/logs/basic/config.json
 signal-generator run --config examples/logs/basic/config.json
@@ -44,3 +47,17 @@ The separately built adapter is documented in
 [`integrations/opamp-simulator/README.md`](integrations/opamp-simulator/README.md). Unified mode
 requires `APP_ENABLE_DEV_FEATURES=true` and runs simulated OpAMP clients and replay runtimes in one
 worker, process, listener, and event loop without a SignalGenerator subprocess.
+
+## Quality and release evidence
+
+Run the complete core and adapter gate, performance benchmark, and release-manifest generator with:
+
+```text
+python scripts/security_checks.py
+python scripts/benchmark_replay.py --output test-results/performance.json
+python scripts/release_artifacts.py dist/phase5-6 dist/phase5-6-adapter --output dist/evidence
+```
+
+See [performance limits](docs/performance_limits.md), [security hardening](docs/security_hardening.md),
+the [compatibility matrix](docs/compatibility_matrix.md), and the signed-tag
+[release process](docs/release_process.md).

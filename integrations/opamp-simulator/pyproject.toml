@@ -35,6 +35,7 @@ dev = [
   "pytest-cov>=7.0.0",
   "quart>=0.19.4",
   "ruff>=0.15.0",
+  "twine>=6.0",
   "xenon>=0.9",
 ]
 
@@ -47,7 +48,7 @@ signal_generator = "signal_generator_opamp_sim.supervised_plugin:main"
 [project.urls]
 Repository = "https://github.com/opamp-observe/SignalGenerator-Python"
 Homepage = "https://opamp.info"
-Blog = "https://blog.mp3monster.org/category/technology/fluent-observability/opamp/"
+Blog = "https://opamp.info"
 
 [tool.setuptools]
 package-dir = { "" = "src" }

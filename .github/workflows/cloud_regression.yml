@@ -1,0 +1,82 @@
+# Copyright 2026 opamp.info
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+name: cloud regression
+
+on:
+  workflow_dispatch:
+    inputs:
+      cloud:
+        description: Cloud hosting the ephemeral self-hosted runner
+        required: true
+        type: choice
+        options: [aws, azure]
+      profile:
+        description: Regression profile
+        required: true
+        default: all
+        type: choice
+        options: [all, pull, push, unified]
+      source_ref:
+        description: Branch, tag, or commit to test
+        required: true
+        default: main
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloud-regression-${{ inputs.cloud }}
+  cancel-in-progress: false
+
+jobs:
+  regression:
+    name: ${{ inputs.cloud }} / ${{ inputs.profile }}
+    runs-on:
+      - self-hosted
+      - linux
+      - signal-generator-regression
+      - ${{ inputs.cloud }}
+    environment: cloud-regression-${{ inputs.cloud }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_ref }}
+      - uses: actions/checkout@v6
+        with:
+          repository: opamp-observe/opamp-core
+          path: opamp-core
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Check cloud runner prerequisites
+        run: >-
+          python scripts/check_cloud_runner.py
+          --cloud ${{ inputs.cloud }}
+          --output test-results/cloud-runner.json
+      - name: Run isolated container regression
+        run: >-
+          python scripts/run_regression.py
+          --cloud ${{ inputs.cloud }}
+          --profile ${{ inputs.profile }}
+          --opamp-core-context "${{ github.workspace }}/opamp-core"
+          --output test-results/regression.json
+      - name: Upload regression evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloud-regression-${{ inputs.cloud }}-${{ inputs.profile }}-${{ github.run_id }}
+          path: test-results/*.json
+          if-no-files-found: warn
+      - name: Remove scoped test containers
+        if: always()
+        run: |
+          for profile in pull push unified; do
+            docker compose -p "signal-generator-regression-${profile}" \
+              -f tests/test-containers/phase5/compose.yaml \
+              --profile "${profile}" down --remove-orphans --volumes || true
+          done

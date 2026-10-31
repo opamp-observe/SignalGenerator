@@ -1,3 +1,8 @@
+# Copyright 2026 opamp.info
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+
 name: quality
 
 on:
@@ -15,7 +20,7 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
@@ -28,14 +33,72 @@ jobs:
       - if: matrix.python-version == '3.13'
         run: python -m twine check dist/*
 
-  metrics-container:
+  adapter:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6
+        with:
+          repository: opamp-observe/opamp-core
+          path: opamp-core
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
-      - run: docker compose -f tests/test-containers/metrics/compose.yaml up --build --detach --wait
-      - run: python tests/test-containers/metrics/verify.py
+          cache: pip
+      - run: python -m pip install -e . -e opamp-core/consumer -e opamp-core/consumer-sim -e "integrations/opamp-simulator[dev]"
+      - working-directory: integrations/opamp-simulator
+        run: |
+          python -m ruff check src tests
+          python -m pylint src/signal_generator_opamp_sim
+          python -m pytest -q
+          python -m xenon --max-absolute B --max-modules A --max-average A src/signal_generator_opamp_sim
+          python -m build
+          python -m twine check dist/*
+
+  performance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: python -m pip install -e .
+      - run: python scripts/benchmark_replay.py --output test-results/performance.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: performance-python-3.13
+          path: test-results/performance.json
+
+  metrics-container:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        profile: [pull, push]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: docker compose -f tests/test-containers/phase5/compose.yaml --profile ${{ matrix.profile }} up --build --detach --wait
+      - run: python tests/test-containers/phase5/verify.py ${{ matrix.profile }}
       - if: always()
-        run: docker compose -f tests/test-containers/metrics/compose.yaml down --remove-orphans
+        run: docker compose -f tests/test-containers/phase5/compose.yaml --profile ${{ matrix.profile }} down --remove-orphans
+
+  unified-container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6
+        with:
+          repository: opamp-observe/opamp-core
+          path: opamp-core
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - env:
+          OPAMP_CORE_CONTEXT: ${{ github.workspace }}/opamp-core
+        run: docker compose -f tests/test-containers/phase5/compose.yaml --profile unified up --build --detach --wait
+      - run: python tests/test-containers/phase5/verify.py unified
+      - if: always()
+        run: docker compose -f tests/test-containers/phase5/compose.yaml --profile unified down --remove-orphans

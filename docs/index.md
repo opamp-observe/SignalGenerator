@@ -26,10 +26,22 @@ implemented through the phased gates below.
 - [Migration guide](migration_guide.md): legacy property conversion and upgrade checks.
 - [Metrics replay operations](metrics_replay.md): JSONL replay, pull routes, Pushgateway delivery,
   EOF behavior, diagnostics, and the NGINX container demonstration.
+- [User guide](user_guide.md): installation, validation, log and metric replay, containers, OpAMP
+  modes, and troubleshooting.
+- [Development setup](development_setup.md): environment bootstrap, local quality gates, package
+  builds, and AWS/Azure GitHub regression runners.
+- [Performance limits](performance_limits.md): supported workload envelope and reproducible replay
+  benchmark.
+- [Compatibility matrix](compatibility_matrix.md): tested package, Python, Quart, and deployment
+  combinations.
+- [Security hardening](security_hardening.md): security gates, failure injection, and retained
+  release evidence.
+- [Release process](release_process.md): signed tags, trusted publication, SBOMs, checksums,
+  signatures, and provenance.
 
 ## Design status
 
-Status: **accepted; Phases 1 through 6 implemented**
+Status: **accepted; Phases 1 through 7 implemented**
 
 The design deliberately separates five concerns:
 
