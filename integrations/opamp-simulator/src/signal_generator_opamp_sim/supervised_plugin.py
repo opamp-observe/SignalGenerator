@@ -224,9 +224,11 @@ async def _run(config: ConsumerConfig) -> None:
     client.add_agent_version(port)
     try:
         await run_client(client)
-        await client.run_heartbeat_loop(port)
+        # These public methods arrive through opamp-consumer's runtime mixin. Astroid cannot
+        # resolve that cross-distribution inheritance consistently in editable CI installs.
+        await client.run_heartbeat_loop(port)  # pylint: disable=no-member
     finally:
-        await client.finalize_async()
+        await client.finalize_async()  # pylint: disable=no-member
         client.terminate_agent_process()
 
 

@@ -191,9 +191,8 @@ SignalGenerator tests should publish a small reusable contract fixture that prov
 - `SIGTERM` stops within the configured timeout.
 - `--version` is machine-readable enough for the adapter to report.
 
-The separate adapter distribution owns SignalGenerator-specific plugin, message, lifecycle, and
-unified-host tests. `opamp-core` owns only its generic embeddable simulator-client API contract
-tests.
+The separate adapter distribution owns the plugin, embeddable simulator lifecycle, message, and
+unified-host tests. `opamp-core` owns only its generic simulator-client behavior and API tests.
 
 Adapter CLI contracts additionally prove that `signal-generator-opamp-sim validate`:
 
@@ -348,8 +347,8 @@ Recommended gates:
 8. Image vulnerability scan, software bill of materials, and artifact attestation.
 
 The OpAMP integration is tested in the adapter pipeline. Its matrix installs released and candidate
-SignalGenerator, `opamp-consumer`, and `opamp-consumer-sim` wheels. The `opamp-core` pipeline tests
-only the generic simulator-client API and may trigger downstream adapter compatibility testing.
+SignalGenerator and `opamp-consumer` wheels. The `opamp-core` pipeline tests the generic simulator
+client and may trigger downstream adapter compatibility testing.
 
 ## 11. Test data rules
 

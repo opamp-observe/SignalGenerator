@@ -17,6 +17,8 @@ implemented through the phased gates below.
 - [OpAMP integration design](opamp_integration_design.md): package provenance and dependency
   diagrams, deployment-permutation views, plugin contract, and the separately owned adapter module
   for supervised-process and unified-simulator Quart deployments.
+- [UML package and deployment architecture](uml_architecture.md): colour-coded package dependencies
+  and standalone, supervised, and unified deployment views.
 - [Implementation plan](implementation_plan.md): phased delivery, acceptance gates, risks, and
   decisions that must remain visible during implementation.
 - [Startup scripts](../scripts/README.md): PowerShell, Windows Command Prompt, and Bash launchers

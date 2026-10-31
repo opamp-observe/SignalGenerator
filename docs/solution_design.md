@@ -71,6 +71,10 @@ using a versioned configuration model and replaceable Python interfaces.
 
 ## 5. Architecture
 
+The colour-coded [UML package and deployment diagrams](uml_architecture.md) show distribution
+ownership, allowed dependency directions, and all three supported process permutations. The flow
+below focuses on the internal signal paths.
+
 ```mermaid
 flowchart LR
     Config[Versioned JSON config] --> App[Application orchestrator]
@@ -507,9 +511,8 @@ setting; the default is `isolate` for embedded mode and `fail_process` for stand
 Two supported container shapes follow from these modes:
 
 - A dedicated SignalGenerator image running the console command.
-- A unified adapter image containing the `signal-generator-opamp-sim`, SignalGenerator,
-  `opamp-consumer`, and `opamp-consumer-sim` wheels, with runtimes attached by the adapter app
-  factory.
+- A unified adapter image containing the `signal-generator-opamp-sim`, SignalGenerator, and
+  `opamp-consumer` wheels, with runtimes attached by the adapter app factory.
 
 The second option is one operating-system process. It is not a sidecar and does not use the
 child-process consumer lifecycle.

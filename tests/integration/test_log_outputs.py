@@ -54,13 +54,17 @@ async def test_tcp_output_uses_delimiter() -> None:
     """TCP output connects locally and drains one delimiter-terminated event."""
 
     received = bytearray()
+    received_event = asyncio.Event()
 
     async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         """Capture one record and close the local test connection."""
 
-        received.extend(await reader.readuntil(b"|"))
-        writer.close()
-        await writer.wait_closed()
+        try:
+            received.extend(await reader.readuntil(b"|"))
+        finally:
+            writer.close()
+            await writer.wait_closed()
+            received_event.set()
 
     server = await asyncio.start_server(handle_client, "127.0.0.1", 0)
     port = server.sockets[0].getsockname()[1]
@@ -68,6 +72,7 @@ async def test_tcp_output_uses_delimiter() -> None:
     await output.open()
     await output.write(_event("tcp"))
     await output.close()
+    await asyncio.wait_for(received_event.wait(), timeout=1.0)
     server.close()
     await server.wait_closed()
     assert bytes(received) == b"tcp|"
@@ -119,3 +124,10 @@ async def test_python_logging_output(caplog: pytest.LogCaptureFixture) -> None:
     output = PythonLoggingOutput("test.replay", "WARNING")
     await output.write(_event("warning payload"))
     assert caplog.messages == ["warning payload"]
+
+
+def test_python_logging_output_defaults_unknown_level_to_info() -> None:
+    """Unknown names use INFO without relying on Python 3.11 logging APIs."""
+
+    output = PythonLoggingOutput("test.replay", "not-a-level")
+    assert output.level == logging.INFO

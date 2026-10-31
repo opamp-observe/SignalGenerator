@@ -29,7 +29,7 @@ py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
-python -m pip install -e "..\opamp2\consumer" -e "..\opamp2\consumer-sim"
+python -m pip install -e "..\opamp2\consumer"
 python -m pip install -e ".\integrations\opamp-simulator[dev]"
 
 # Bash
@@ -37,7 +37,7 @@ python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
-python -m pip install -e ../opamp2/consumer -e ../opamp2/consumer-sim
+python -m pip install -e ../opamp2/consumer
 python -m pip install -e "./integrations/opamp-simulator[dev]"
 ```
 
@@ -63,8 +63,9 @@ the adapter owns its separate compatibility lock and TOML metadata.
 | `scripts` | Startup, security, benchmark, release, and regression utilities |
 | `docs` | Design, operation, development, security, and release contracts |
 
-Only generic simulator-client APIs belong in `opamp-observe/opamp-core`. SignalGenerator-specific
-logic remains in the adapter. Do not add the feature to the OpAMP provider.
+The adapter consumes the generic simulator client from `opamp-observe/opamp-core`; its embeddable
+lifecycle and all SignalGenerator-specific logic remain in the adapter. Do not add this feature to
+the companion process launcher or the OpAMP provider.
 
 ## Daily development commands
 

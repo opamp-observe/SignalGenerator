@@ -30,8 +30,7 @@ plugin entry point, unified Quart host, schemas, tests, and dependency bounds on
 
 - `signal-generator`,
 - `jsonschema`, because the adapter validates its own configuration schema,
-- `opamp-consumer`, because the concrete simulator client lives there,
-- `opamp-consumer-sim`, because it supplies the simulator packaging and public embeddable API.
+- `opamp-consumer`, because the concrete simulator client lives there.
 
 The adapter's `unified` extra adds its direct Quart dependency; the base installation remains
 sufficient for supervised mode.
@@ -140,7 +139,6 @@ dependencies = [
   "signal-generator>=0.1.0,<0.2.0",
   "jsonschema>=4.23",
   "opamp-consumer>=0.6.0,<0.7.0",
-  "opamp-consumer-sim>=0.6.0,<0.7.0",
 ]
 
 [project.optional-dependencies]
@@ -173,9 +171,8 @@ Versioning follows semantic versioning:
 
 Pre-releases use PEP 440 forms such as `1.0.0rc1`. Git tags use `v1.0.0`.
 
-SignalGenerator, `signal-generator-opamp-sim`, `opamp-consumer`, and `opamp-consumer-sim` versions
-are independent. Documentation and CI maintain a compatibility matrix rather than forcing lockstep
-releases.
+SignalGenerator, `signal-generator-opamp-sim`, and `opamp-consumer` versions are independent.
+Documentation and CI maintain a compatibility matrix rather than forcing lockstep releases.
 
 ## 5. Wheel contents
 
@@ -310,6 +307,5 @@ Each release retains:
 - standalone and embedded E2E results,
 - SBOMs, provenance, signatures, and checksums,
 - dependency lock and build-tool versions,
-- compatibility matrix for SignalGenerator, adapter, Python, Quart, `opamp-consumer`, and
-  `opamp-consumer-sim`.
+- compatibility matrix for SignalGenerator, adapter, Python, Quart, and `opamp-consumer`.
 

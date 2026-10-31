@@ -32,7 +32,7 @@ missing repository code.
 | 3 — metric pull | Verified for required Prometheus scraper behavior; SG-002 remains | JSONL models/validation, atomic cursor/store, isolated registry/collector, HTTP lifecycle routes, four EOF policies, NGINX fixture | Metric-family/parser tests, concurrency tests, non-consuming health tests, real Prometheus pull profile. Explicit OpenMetrics negotiation is absent |
 | 4 — scheduled push | Verified | Push adapter protocol, Pushgateway client, independent cursor, interval/source timing, retry/backoff, auth/TLS | Same-frame retry, one-step success, pull/push independence, real Pushgateway profile |
 | 5 — container/Quart/demo | Verified | Non-root multi-stage image, host-independent runtime, Quart blueprint attachment, prefixed routes, phase-5 Compose/verifier | Pull, push, and unified profiles pass; Prometheus API sees NGINX metrics; multi-runtime isolation and awaited shutdown tests pass |
-| 6 — OpAMP adapter | Verified | Independent adapter TOML/schema/CLI/entry point; supervised lifecycle; unified Quart app; generic `SimulatorInstance` API in `opamp-core` | Adapter tests, installed entry-point and wheel smoke, consumer/simulator focused tests, one-process unified container; no provider or SignalGenerator-specific core dependency |
+| 6 — OpAMP adapter | Verified | Independent adapter TOML/schema/CLI/entry point; supervised lifecycle; unified Quart app; adapter-owned `SimulatorInstance` around the public OpAMP simulator client | Adapter tests, installed entry-point and wheel smoke, one-process unified container against an unmodified `opamp-core`; no provider or SignalGenerator-specific core dependency |
 | 7 — hardening/release | Implemented; publication awaits a release tag | Benchmark, failure injection, security gate, lock, SBOM/image-scan/signing/provenance workflow, checksums, compatibility/release docs | Core and adapter coverage/complexity gates, dependency audit, Actionlint, repeat-build hash equality, Twine and clean-install smoke |
 
 ## 3. Deliverable and gate observations
@@ -43,8 +43,8 @@ missing repository code.
   invalid remote configuration, passive health, unified routes, and deterministic shutdown.
 - The cloud regression workflow can target an ephemeral AWS or Azure self-hosted runner and retains
   machine-readable evidence for pull, push, and unified profiles.
-- `opamp-core` contains generic consumer/simulator lifecycle changes. SignalGenerator-aware code,
-  schemas, entry points, and dependencies remain in the independent adapter.
+- `opamp-core` supplies the generic simulator client without SignalGenerator-specific changes.
+  Embeddable lifecycle, schemas, entry points, and composition remain in the independent adapter.
 - The OpAMP provider is not a deployment mode and is not in the adapter dependency graph.
 - Copyright and project metadata in tracked content and current release archives use `opamp.info`;
   references to the original `mp3monster/LogGenerator` repository remain only as source attribution.

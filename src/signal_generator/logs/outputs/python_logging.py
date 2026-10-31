@@ -22,7 +22,8 @@ class PythonLoggingOutput(LogOutput):
         """Resolve the named logger and configured Python level."""
 
         self.logger = logging.getLogger(logger_name)
-        self.level = logging.getLevelNamesMapping().get(level.upper(), logging.INFO)
+        resolved_level = logging.getLevelName(level.upper())
+        self.level = resolved_level if isinstance(resolved_level, int) else logging.INFO
 
     async def write(self, event: RenderedLogEvent) -> None:
         """Emit the event without interpolating its text as a format string."""

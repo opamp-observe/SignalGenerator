@@ -1,9 +1,8 @@
 # Direct runtime compatibility lock for reproducible adapter resolution.
-# Local development resolves the three first-party wheels from a wheelhouse.
+# Local development resolves the two first-party dependency wheels from a wheelhouse.
 httpx==0.28.1
 jsonschema==4.25.1
 opamp-consumer==0.6.0
-opamp-consumer-sim==0.6.0
 signal-generator==0.1.0
 
 # unified extra

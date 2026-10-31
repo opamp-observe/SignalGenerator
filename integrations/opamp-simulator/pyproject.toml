@@ -21,7 +21,6 @@ dependencies = [
   "httpx>=0.27",
   "jsonschema>=4.23",
   "opamp-consumer>=0.6.0,<0.7.0",
-  "opamp-consumer-sim>=0.6.0,<0.7.0",
   "signal-generator>=0.1.0,<0.2.0",
 ]
 

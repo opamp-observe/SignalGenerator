@@ -9,10 +9,8 @@ FROM python:3.11-slim AS wheel-builder
 WORKDIR /build
 COPY . /build/signal-generator
 COPY --from=opamp_core consumer /build/opamp2/consumer
-COPY --from=opamp_core consumer-sim /build/opamp2/consumer-sim
 COPY --from=opamp_core shared /build/opamp2/shared
 RUN python -m pip wheel --no-cache-dir --no-deps --wheel-dir /wheels /build/opamp2/consumer \
-    && python -m pip wheel --no-cache-dir --no-deps --wheel-dir /wheels /build/opamp2/consumer-sim \
     && python -m pip wheel --no-cache-dir --no-deps --wheel-dir /wheels /build/signal-generator \
     && python -m pip wheel --no-cache-dir --no-deps --wheel-dir /wheels /build/signal-generator/integrations/opamp-simulator
 

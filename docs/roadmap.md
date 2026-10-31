@@ -186,8 +186,8 @@ external project and repository configuration plus evidence from an actual relea
 
 - create or confirm both PyPI projects and configure narrowly scoped OIDC Trusted Publishers for
   `.github/workflows/release.yml` and its protected `pypi` environment;
-- confirm that compatible `opamp-consumer` and `opamp-consumer-sim` releases are publicly
-  installable before publishing the adapter;
+- confirm that a compatible `opamp-consumer` release is publicly installable before publishing the
+  adapter;
 - perform a TestPyPI rehearsal without weakening the production trusted-publisher boundary;
 - publish wheel and source distributions only from reviewed, signed, version-matched tags;
 - verify project metadata, rendered README, SPDX licence expression, Python-version classifiers,

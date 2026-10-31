@@ -12,20 +12,20 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
-from opamp_consumer_sim import (
-    SimulatorIdentity,
-    SimulatorInstance,
-    SimulatorInstanceConfig,
-    SimulatorResponsePlan,
-)
 from signal_generator.config.loader import load_configuration, load_configuration_mapping
 from signal_generator.embedding.quart import attach_signal_generator_runtime
 from signal_generator.runtime import SignalGeneratorRuntime
 
-from signal_generator_opamp_sim.config import (  # pylint: disable=wrong-import-order
+from signal_generator_opamp_sim.config import (
     AdapterConfig,
     InstanceConfig,
     load_adapter_config,
+)
+from signal_generator_opamp_sim.simulator_service import (
+    SimulatorIdentity,
+    SimulatorInstance,
+    SimulatorInstanceConfig,
+    SimulatorResponsePlan,
 )
 
 ENV_APP_ENABLE_DEV_FEATURES = "APP_ENABLE_DEV_FEATURES"
@@ -187,7 +187,7 @@ def create_app(
 
 
 def _simulator_config(instance: InstanceConfig) -> SimulatorInstanceConfig:
-    """Translate adapter-owned models into the generic opamp-core public API."""
+    """Translate adapter configuration into its embeddable simulator lifecycle model."""
 
     return SimulatorInstanceConfig(
         instance.name,
@@ -223,7 +223,7 @@ def _attach_runtimes(
 def _build_instances(
     adapter_config: AdapterConfig, simulator_factory: SimulatorFactory
 ) -> dict[str, Any]:
-    """Construct generic simulator services without starting their network tasks."""
+    """Construct adapter-owned simulator services without starting network tasks."""
 
     return {
         instance.name: simulator_factory(_simulator_config(instance))

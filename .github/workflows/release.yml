@@ -65,7 +65,7 @@ jobs:
       - name: Install release toolchain and local compatibility dependencies
         run: |
           python -m pip install --upgrade "pip>=26.2" "setuptools>=84.1"
-          python -m pip install -e ".[dev]" -e opamp-core/consumer -e opamp-core/consumer-sim
+          python -m pip install -e ".[dev]" -e opamp-core/consumer
           python -m pip install -e "integrations/opamp-simulator[dev]"
       - name: Run source, dependency, test, coverage, and complexity gates
         run: python scripts/security_checks.py

@@ -26,8 +26,8 @@
 - An independently built `signal-generator-opamp-sim` distribution with its own TOML metadata,
   lock file, schema-backed validation CLI, installed OpAMP plugin entry point, wheel/source build,
   supervised lifecycle, and unified one-process Quart host.
-- A generic public `opamp-consumer-sim` async simulator lifecycle in `opamp-core`; provider code and
-  images remain unchanged and contain no SignalGenerator dependency.
+- An adapter-owned async simulator lifecycle composed around the public `opamp-consumer` simulator
+  client; `opamp-core` and provider code remain unchanged and contain no SignalGenerator dependency.
 - Release performance floors and a machine-readable benchmark covering JSONL loading, exposition
   throughput, and peak traced allocation.
 - Failure-injection tests for occupied ports, missing/malformed sources, Pushgateway outages, and

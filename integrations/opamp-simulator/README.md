@@ -1,8 +1,9 @@
 # SignalGenerator OpAMP simulator adapter
 
-This independently built distribution connects the public `signal-generator`, `opamp-consumer`,
-and `opamp-consumer-sim` APIs. It does not add SignalGenerator code to `opamp-core`, and it never
-changes the OpAMP provider.
+This independently built distribution connects the public `signal-generator` API to the simulator
+client supplied by `opamp-consumer`. It does not add SignalGenerator code to `opamp-core`, and it
+never changes the OpAMP provider. The adapter owns the embeddable lifecycle that composes those
+public APIs; the separate `opamp-consumer-sim` process launcher is not a runtime dependency.
 
 ## Deployment modes
 
@@ -23,7 +24,7 @@ python -m build
 python -m pip install "dist/signal_generator_opamp_sim-0.1.0-py3-none-any.whl[unified]"
 ```
 
-For a source checkout, first build or install the three first-party dependencies. The base adapter
+For a source checkout, first build or install the two first-party dependencies. The base adapter
 does not declare Quart or Hypercorn; the `unified` extra adds those host dependencies.
 
 `requirements.lock` records the tested direct runtime versions. First-party wheels should be
@@ -69,7 +70,6 @@ terminate-then-kill shutdown.
 |---|---|
 | `signal-generator` | `>=0.1.0,<0.2.0` |
 | `opamp-consumer` | `>=0.6.0,<0.7.0` |
-| `opamp-consumer-sim` | `>=0.6.0,<0.7.0` |
 | Python | `>=3.10` |
 
 The unified host enforces one worker. Multiple workers would duplicate replay cursors and simulated

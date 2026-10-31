@@ -283,8 +283,8 @@ The project is complete for the requested scope when:
 - The SignalGenerator plugin behavior is documented.
 - The separate adapter wheel is implemented, built, installed, and tested against published
   SignalGenerator and OpAMP simulator-client APIs.
-- `opamp-core` contains only generic simulator-client API changes and no SignalGenerator-specific
-  code.
+- The adapter consumes the existing generic OpAMP simulator client without requiring
+  SignalGenerator-specific or embeddable-lifecycle changes in `opamp-core`.
 - The signed-tag release process produces wheel, source, image, SBOM, checksums, and provenance.
 - Configuration, migration, operations, and troubleshooting documentation are complete.
 

@@ -20,6 +20,9 @@ The supported deployment modes are:
    one event loop. No SignalGenerator child process, supervisor, observer, PID polling, or local
    health polling is used. This is the preferred mode when SignalGenerator is part of the simulator.
 
+The colour-coded [UML package and deployment diagrams](uml_architecture.md) provide a consolidated
+dependency view plus a separate deployment view for each mode.
+
 All SignalGenerator-to-OpAMP composition lives in the separately built
 `signal-generator-opamp-sim` distribution. It follows the existing OpAMP consumer plugin model used
 by Vector and Elastic Heartbeat:
@@ -49,7 +52,7 @@ adapter uses those distributions, but the adapter itself is not part of the OpAM
 | `signal-generator` | This SignalGenerator project | No | Host-independent replay runtime, standalone CLI, and Quart attachment API. |
 | `signal-generator-opamp-sim` | Independent module under `integrations/opamp-simulator` | No | OpAMP-aware composition, supervised plugin, unified Quart host, and adapter CLI. |
 | `opamp-consumer` | [`opamp-core/consumer`](https://github.com/opamp-observe/opamp-core/tree/main/consumer) | Yes | OpAMP transport, messages, plugin APIs, and `SimulatorOpAMPClient`. |
-| `opamp-consumer-sim` | [`opamp-core/consumer-sim`](https://github.com/opamp-observe/opamp-core/tree/main/consumer-sim) | Yes | Generic simulator service and launcher APIs used by the adapter. |
+| `opamp-consumer-sim` | [`opamp-core/consumer-sim`](https://github.com/opamp-observe/opamp-core/tree/main/consumer-sim) | Yes | Optional companion process launcher; not an adapter runtime dependency. |
 | `quart` | Third-party PyPI distribution | No | ASGI application and lifecycle host for unified mode. |
 | `jsonschema` | Third-party PyPI distribution | No | Draft 2020-12 validation engine used by core and adapter CLIs. |
 | OpAMP provider | Separately deployed service | Not a Python package in this composition | Receives simulated clients and supplies OpAMP responses/configuration; never hosts SignalGenerator. |
@@ -63,7 +66,7 @@ flowchart LR
 
     subgraph OpampProject["opamp-observe/opamp-core — OpAMP consumer project"]
         Consumer["opamp-consumer<br/>transport + SimulatorOpAMPClient"]
-        Simulator["opamp-consumer-sim<br/>generic simulator APIs"]
+        Simulator["opamp-consumer-sim<br/>optional process launcher"]
     end
 
     subgraph ThirdParty["Third party"]
@@ -73,7 +76,6 @@ flowchart LR
 
     Adapter -->|direct dependency| SG
     Adapter -->|direct dependency| Consumer
-    Adapter -->|direct dependency| Simulator
     Simulator -->|dependency| Consumer
     SG -.->|quart extra| Quart
     Adapter -.->|uses unified host| Quart
@@ -90,9 +92,9 @@ flowchart LR
     class Quart,JsonSchema third
 ```
 
-The adapter declares both OpAMP distributions as direct dependencies because it imports public APIs
-from both. The `opamp-consumer-sim` dependency on `opamp-consumer` does not replace the adapter's
-direct declaration. The dashed Quart edges show runtime hosting/extra relationships rather than
+The adapter depends directly on `opamp-consumer`, where `SimulatorOpAMPClient` is implemented. The
+companion `opamp-consumer-sim` launcher remains available for separate-process simulations but is
+not installed by the adapter. Dashed edges show runtime hosting/extra relationships rather than
 ownership.
 
 ### 1.2 Deployment permutation matrix
@@ -100,8 +102,8 @@ ownership.
 | Permutation | Installed application packages | OpAMP consumer packages present? | OS processes | HTTP hosting and lifecycle |
 |---|---|---:|---:|---|
 | Standalone | `signal-generator` | No | 1 | SignalGenerator owns its listener and process lifecycle. |
-| OpAMP-supervised | All four project distributions | Yes | 2 | Adapter/OpAMP control process supervises a separate SignalGenerator process. |
-| Unified simulator Quart | All four project distributions plus Quart | Yes | 1 | Adapter owns one Quart app, listener, event loop, and coordinated lifecycle. |
+| OpAMP-supervised | Core, adapter, and `opamp-consumer` | Yes | 2 | Adapter/OpAMP control process supervises a separate SignalGenerator process. |
+| Unified simulator Quart | Core, adapter, `opamp-consumer`, and Quart | Yes | 1 | Adapter owns one Quart app, listener, event loop, and coordinated lifecycle. |
 
 #### Permutation A: standalone, no OpAMP consumer packages
 
@@ -135,11 +137,8 @@ flowchart LR
 
     subgraph ControlProcess["OS process 1 — adapter and OpAMP control"]
         Adapter["signal-generator-opamp-sim<br/>independent adapter"]
-        Simulator["opamp-consumer-sim<br/>from OpAMP consumer project"]
         Consumer["opamp-consumer<br/>from OpAMP consumer project"]
-        Adapter --> Simulator
         Adapter --> Consumer
-        Simulator --> Consumer
     end
 
     subgraph SignalProcess["OS process 2 — supervised child"]
@@ -158,7 +157,7 @@ flowchart LR
     classDef runtime fill:#f8fafc,stroke:#64748b,color:#0f172a
     class SG signal
     class Adapter adapter
-    class Consumer,Simulator opamp
+    class Consumer opamp
     class Listener,Provider,Scraper runtime
 ```
 
@@ -174,14 +173,12 @@ flowchart LR
 
     subgraph UnifiedProcess["One OS process — one event loop and one listener"]
         Adapter["signal-generator-opamp-sim<br/>independent adapter"]
-        Simulator["opamp-consumer-sim<br/>from OpAMP consumer project"]
         Consumer["opamp-consumer<br/>from OpAMP consumer project"]
         SG["signal-generator<br/>not from OpAMP consumer"]
         Quart["Quart app<br/>third party"]
 
         Adapter -->|constructs| Quart
-        Adapter -->|creates simulator services| Simulator
-        Simulator -->|uses| Consumer
+        Adapter -->|creates simulator services| Consumer
         Adapter -->|attaches replay runtimes| SG
         Consumer -->|tasks share event loop| Quart
         SG -->|routes + lifecycle hooks| Quart
@@ -197,7 +194,7 @@ flowchart LR
     classDef runtime fill:#f8fafc,stroke:#64748b,color:#0f172a
     class SG signal
     class Adapter adapter
-    class Consumer,Simulator opamp
+    class Consumer opamp
     class Quart third
     class Provider,Scraper runtime
 ```
@@ -288,7 +285,6 @@ dependencies = [
   "signal-generator>=0.1.0,<0.2.0",
   "jsonschema>=4.23",
   "opamp-consumer>=0.6.0,<0.7.0",
-  "opamp-consumer-sim>=0.6.0,<0.7.0",
 ]
 
 [project.optional-dependencies]
@@ -301,10 +297,9 @@ signal-generator-opamp-sim = "signal_generator_opamp_sim.cli:main"
 signal_generator = "signal_generator_opamp_sim.supervised_plugin:main"
 ```
 
-`opamp-consumer-sim` currently depends on `opamp-consumer`, while the concrete
-`SimulatorOpAMPClient` is implemented in `opamp-consumer`. The adapter declares both dependencies
-because it imports APIs from both; it must not rely on a transitive dependency for imported types.
-The base adapter install supports supervised mode without Quart. Unified mode is installed as
+The concrete `SimulatorOpAMPClient` is implemented in `opamp-consumer`, so the adapter declares that
+distribution directly and owns the embedding lifecycle around it. The base adapter install supports
+supervised mode without Quart. Unified mode is installed as
 `signal-generator-opamp-sim[unified]`; modules that import Quart fail with an actionable
 missing-extra error when that extra is absent.
 
@@ -446,7 +441,7 @@ In supervised mode, installed entry-point discovery in `opamp-consumer` loads
 
 In unified mode, the adapter CLI creates the Quart app and composes:
 
-- the public embeddable simulator-client API from its OpAMP dependency,
+- its embeddable lifecycle around the public simulator client from `opamp-consumer`,
 - SignalGenerator's public runtime attachment API,
 - adapter-owned schema, ownership, route, and lifecycle logic.
 
@@ -500,16 +495,16 @@ Tests owned by `signal-generator-opamp-sim`:
 Cross-repository contract test:
 
 1. Build/install the SignalGenerator wheel.
-2. Build/install compatible `opamp-consumer` and `opamp-consumer-sim` wheels.
+2. Build/install a compatible `opamp-consumer` wheel.
 3. Build/install the adapter wheel without source-tree path injection.
 4. Start the adapter against an OpAMP test provider.
 5. Confirm agent registration and health.
 6. Apply a scenario change through remote configuration.
 7. Confirm restart, readiness, and changed metric output.
 
-Tests owned by `opamp-core` are limited to the generic embeddable simulator-client lifecycle and API
-contracts. Installed discovery of the SignalGenerator adapter is tested by the adapter distribution;
-`opamp-core` tests must not mention SignalGenerator.
+Tests owned by `opamp-core` cover its generic simulator client. Embeddable lifecycle and installed
+discovery of the SignalGenerator adapter are tested by the adapter distribution; `opamp-core` tests
+must not mention SignalGenerator.
 
 ## 11. Documentation requirements
 
@@ -524,7 +519,8 @@ The adapter distribution must document:
 - development-only scope,
 - troubleshooting for executable discovery, port conflicts, and invalid scenarios.
 
-`opamp-core` documents only its generic public simulator-client API and compatibility guarantees.
+`opamp-core` documents its generic public simulator-client API and compatibility guarantees. The
+adapter documents the lifecycle wrapper it owns.
 
 SignalGenerator documentation links to the OpAMP guide but does not duplicate OpAMP protocol
 details.
@@ -569,10 +565,10 @@ The Quart server must run with one worker. Multiple worker processes would dupli
 agents, replay cursors, pushes, and log output. Horizontal scaling uses explicitly partitioned
 instance configuration, not additional transparent web workers.
 
-### 13.2 Simulator refactoring
+### 13.2 Adapter-owned simulator service
 
-The current simulator client `main()` and launcher own process startup. Unified mode requires an
-embeddable async service boundary:
+The current simulator client also has process-oriented entry points. Unified mode wraps its public
+client class in this adapter-owned async service boundary:
 
 ```text
 SimulatorInstance.start() -> awaitable
@@ -581,28 +577,23 @@ SimulatorInstance.apply_config(candidate) -> awaitable result
 SimulatorInstance.health() -> immutable status
 ```
 
-Required generic OpAMP simulator-client API work:
+The separate adapter distribution:
 
-1. Expose an embeddable async simulator service from `opamp-consumer-sim`, backed by the existing
-   `SimulatorOpAMPClient` in `opamp-consumer`.
-2. Separate argument parsing and `asyncio.run` from simulator behavior.
-3. Make connection, heartbeat, scripted-response, and shutdown loops cancellable through a stable
-   lifecycle protocol.
-4. Export configuration, identity, response-plan, health, and logical-restart types as public APIs.
-5. Add API contract tests and semantic-versioning coverage without any SignalGenerator references.
+1. Implements `signal_generator_opamp_sim.simulator_service.SimulatorInstance` around the public
+   `opamp_consumer.simulator.client.SimulatorOpAMPClient`.
+2. Separates argument parsing and `asyncio.run` from the cancellable connection, heartbeat,
+   scripted-response, and shutdown lifecycle.
+3. Implements `signal_generator_opamp_sim.quart_app.create_app(config_path)`.
+4. Stores simulator and replay registries in `app.extensions`, never module globals.
+5. Constructs every configured simulator service and SignalGenerator runtime before serving.
+6. Starts all tasks from `app.before_serving` and awaits shutdown from `app.after_serving`.
+7. Enforces `APP_ENABLE_DEV_FEATURES=true`.
+8. Owns unified configuration, identity, response-plan, health, logical restart, failure isolation,
+   route composition, and container startup.
 
-The separate adapter distribution then:
-
-1. Implements `signal_generator_opamp_sim.quart_app.create_app(config_path)`.
-2. Stores simulator and replay registries in `app.extensions`, never module globals.
-3. Constructs every configured simulator service and SignalGenerator runtime before serving.
-4. Starts all tasks from `app.before_serving` and awaits shutdown from `app.after_serving`.
-5. Enforces `APP_ENABLE_DEV_FEATURES=true`.
-6. Owns unified configuration, route composition, failure isolation, and container startup.
-
-The existing `opamp-consumer-sim` process launcher remains unchanged. Shared consumer transport and
-message-building code stay in `opamp-core`; all SignalGenerator-aware lifecycle ownership stays in the
-adapter.
+The existing `opamp-consumer-sim` process launcher remains unchanged and is not required by unified
+mode. Shared consumer transport, messages, and the generic simulator client stay in `opamp-core`;
+embeddable and SignalGenerator-aware lifecycle ownership stays in the adapter.
 
 ### 13.3 SignalGenerator embedding API
 

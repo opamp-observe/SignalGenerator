@@ -145,3 +145,31 @@ def test_roadmap_is_the_single_future_work_register() -> None:
     assert all(item in roadmap for item in required_items)
     assert "## 12. Deferred features" not in implementation_plan
     assert "[roadmap.md](roadmap.md)" in implementation_plan
+
+
+def test_uml_document_covers_packages_and_deployment_permutations() -> None:
+    """The colour-coded UML guide must retain package boundaries and every supported mode."""
+
+    uml_document = Path("docs/uml_architecture.md").read_text(encoding="utf-8")
+    required_fragments = (
+        "classDiagram",
+        'class SignalGeneratorCore["signal-generator"]',
+        'class SignalGeneratorAdapter["signal-generator-opamp-sim"]',
+        'class OpAMPConsumer["opamp-consumer"]',
+        'class OpAMPConsumerSim["opamp-consumer-sim"]',
+        "UML deployment diagram: standalone utility",
+        "UML deployment diagram: OpAMP-supervised process",
+        "UML deployment diagram: unified Quart simulator",
+        "style SignalGeneratorCore fill:#dbeafe",
+        "style SignalGeneratorAdapter fill:#dcfce7",
+        "style OpAMPConsumer fill:#fef3c7",
+        "style Quart fill:#f3e8ff",
+        "style OpAMPProvider fill:#fee2e2",
+        "classDef core fill:#dbeafe",
+        "classDef adapter fill:#dcfce7",
+        "classDef opamp fill:#fef3c7",
+        "classDef thirdParty fill:#f3e8ff",
+        "classDef provider fill:#fee2e2",
+        "Provider becoming a SignalGenerator deployment mode",
+    )
+    assert all(fragment in uml_document for fragment in required_fragments)
