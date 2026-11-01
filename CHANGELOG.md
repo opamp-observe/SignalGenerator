@@ -39,3 +39,10 @@
   for labeled ephemeral AWS or Azure runners.
 - A phase-by-phase implementation verification and consolidated roadmap, including a detailed OpAMP
   custom-action design for atomic configuration and test-data bundle delivery.
+- A default-closed GitHub repository-variable control for the unreleased composite OpAMP simulator
+  integration, while retaining supervised adapter tests and all core and metrics-container gates.
+
+### Fixed
+
+- Python 3.10 push-scheduler timeout handling and core-only dependency auditing, allowing the full
+  supported-version GitHub matrix to test shipped dependencies without audit-tool false positives.

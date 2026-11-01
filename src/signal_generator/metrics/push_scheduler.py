@@ -154,7 +154,9 @@ async def _wait_or_stop(delay: float, control: PushLoopControl) -> bool:
         return not control.stop_event.is_set()
     try:
         await asyncio.wait_for(control.stop_event.wait(), timeout=delay)
-    except TimeoutError:
+    # Python 3.10 raises asyncio.TimeoutError here; from Python 3.11 onward it is an
+    # alias of the built-in TimeoutError. Catch the asyncio API type for both lines.
+    except asyncio.TimeoutError:
         return True
     return False
 

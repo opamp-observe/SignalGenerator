@@ -350,6 +350,20 @@ The OpAMP integration is tested in the adapter pipeline. Its matrix installs rel
 SignalGenerator and `opamp-consumer` wheels. The `opamp-core` pipeline tests the generic simulator
 client and may trigger downstream adapter compatibility testing.
 
+### 10.1 Temporary composite-integration control
+
+The GitHub repository variable `ENABLE_OPAMP_CORE_SIMULATOR_INTEGRATION_TESTS` controls the
+`unified-container` job in `.github/workflows/quality.yml`. The variable is deliberately unset (or
+may be set to `false`), so GitHub suppresses that job while the `opamp-core` release line does not
+yet publish all mechanisms required by the single-process composite simulator use case. Set the
+variable to the exact lower-case value `true` once a compatible `opamp-core` release is available.
+
+This control is intentionally narrow. It does not suppress Signal Generator core tests, pull or
+push container tests, adapter static analysis and packaging, or the supervised-process scenario.
+The supervised plugin tests continue to run in the `adapter` job. Local developers may still run
+the unified profile explicitly against a compatible `opamp-core` checkout before the variable is
+enabled.
+
 ## 11. Test data rules
 
 - Test data is small, human-reviewable, and deterministic.

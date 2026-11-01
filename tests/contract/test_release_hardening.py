@@ -123,6 +123,19 @@ def test_cloud_workflow_selects_protected_aws_or_azure_runner() -> None:
     assert all(fragment in workflow for fragment in required_fragments)
 
 
+def test_unreleased_opamp_composite_test_is_explicitly_suppressed() -> None:
+    """The temporary GitHub control must default closed without hiding supervisor tests."""
+
+    workflow = Path(".github/workflows/quality.yml").read_text(encoding="utf-8")
+    testing_guide = Path("docs/testing_and_demo_strategy.md").read_text(encoding="utf-8")
+    control = "ENABLE_OPAMP_CORE_SIMULATOR_INTEGRATION_TESTS"
+
+    assert f"vars.{control} == 'true'" in workflow
+    assert "python -m pytest -q" in workflow
+    assert control in testing_guide
+    assert "supervised plugin tests continue to run" in testing_guide
+
+
 def test_roadmap_is_the_single_future_work_register() -> None:
     """Audit gaps and requested OpAMP file actions must remain explicit in one roadmap."""
 

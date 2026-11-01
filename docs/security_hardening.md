@@ -4,7 +4,11 @@
 
 `python scripts/security_checks.py` is the repository-wide pre-package gate. It runs Ruff's
 security rules, Pylint, core and adapter tests with branch coverage, Xenon complexity limits, and
-`pip-audit`. CI additionally scans built images with Trivy and generates SBOMs with Syft.
+uses `pip-audit` for dependency checks. The core-only Python matrix audits the project's resolved
+runtime graph rather than its quality-tool environment, preventing an unrelated audit/cache
+dependency from being attributed to the shipped core distribution. The complete local/release gate
+audits the installed environment containing both core and adapter dependencies. CI additionally
+scans built images with Trivy and generates SBOMs with Syft.
 
 Critical or high image findings block release. A temporary exception requires a changelog entry,
 an owner, an expiry date, and evidence that no fixed package or base image exists. Secrets are

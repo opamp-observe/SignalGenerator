@@ -119,6 +119,12 @@ The prerequisite checker is read-only; `--cloud` records the intended runner typ
 script scopes each Compose project by profile, emits a JSON report, captures service logs on
 failure, and tears down in a `finally` path.
 
+GitHub's composite `unified-container` job is currently suppressed because the released
+`opamp-core` packages do not yet expose every mechanism required by the single-process simulator
+composition. The repository variable `ENABLE_OPAMP_CORE_SIMULATOR_INTEGRATION_TESTS` is the
+control: leave it unset or `false` to suppress the job, and set it to the exact value `true` after
+the compatible `opamp-core` release. This does not affect the adapter's supervised plugin tests.
+
 ## AWS and Azure GitHub regression runners
 
 `.github/workflows/cloud_regression.yml` is manually dispatched from GitHub Actions. It selects a

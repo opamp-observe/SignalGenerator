@@ -50,7 +50,12 @@ ADAPTER_COMMANDS = (
         "src/signal_generator_opamp_sim",
     ),
 )
-AUDIT_COMMANDS = (
+CORE_AUDIT_COMMANDS = (
+    # Audit the shipped runtime graph, not pip-audit's own quality-tool dependencies.
+    (REPOSITORY_ROOT, "pip_audit", ".", "--progress-spinner", "off"),
+)
+FULL_AUDIT_COMMANDS = (
+    # A full, installed development environment also contains the adapter dependency graph.
     (REPOSITORY_ROOT, "pip_audit", "--progress-spinner", "off", "--skip-editable"),
 )
 
@@ -75,7 +80,9 @@ def main(arguments: list[str] | None = None) -> int:
     commands = CORE_COMMANDS
     if options.scope == SCOPE_ALL:
         commands += ADAPTER_COMMANDS
-    commands += AUDIT_COMMANDS
+        commands += FULL_AUDIT_COMMANDS
+    else:
+        commands += CORE_AUDIT_COMMANDS
 
     for working_directory, module_name, *module_arguments in commands:
         command = [sys.executable, "-m", module_name, *module_arguments]
