@@ -93,6 +93,10 @@ It covers both distributions, branch coverage, cyclomatic complexity, source-sec
 dependency auditing. Functions may be no worse than Radon B/McCabe 10, while module and package
 averages must remain A. Core branch coverage must remain at least 90%.
 
+The `quality` GitHub Actions workflow does not run for pull requests or pushes to `main` whose
+changes are limited to Markdown files and content under `docs/`. A change that includes any other
+path still runs the complete workflow.
+
 ## Build and smoke-test distributions
 
 ```text
