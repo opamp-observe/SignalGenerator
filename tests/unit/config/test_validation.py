@@ -35,6 +35,121 @@ def test_valid_configuration_and_relative_path(log_config_factory) -> None:
     assert loaded.model.logs.source.path == config_path.parent / "events.txt"
 
 
+def test_replay_start_and_priority_survive_typed_loading(log_config_factory) -> None:
+    """Explicit scheduling fields are retained while omission preserves legacy timing."""
+
+    explicit_path = log_config_factory(
+        {"logs": {"replay": {"start_at": "now", "source_priority": 25}}}
+    )
+    explicit = load_configuration(explicit_path).model.logs
+    assert explicit is not None
+    assert explicit.replay.start_at == "now"
+    assert explicit.replay.source_priority == 25
+
+    legacy_path = log_config_factory()
+    legacy = load_configuration(legacy_path).model.logs
+    assert legacy is not None
+    assert legacy.replay.start_at is None
+    assert legacy.replay.source_priority == 100
+
+
+def test_multiple_log_sources_validate_resolve_and_load(tmp_path: Path) -> None:
+    """The multi-source form resolves each path and retains stable identity and priority."""
+
+    (tmp_path / "first.txt").write_text("+0 first\n", encoding="utf-8")
+    (tmp_path / "second.txt").write_text("+0 second\n", encoding="utf-8")
+    document = {
+        "schema_version": 1,
+        "logs": {
+            "enabled": True,
+            "sources": [
+                {
+                    "id": "first",
+                    "priority": 10,
+                    "source": {"path": "first.txt", "format": "%t %m"},
+                },
+                {
+                    "id": "second",
+                    "source": {"path": "second.txt", "format": "%t %m"},
+                },
+            ],
+            "outputs": [{"type": "stdout"}],
+        },
+    }
+    config_path = tmp_path / "multi.json"
+    config_path.write_text(json.dumps(document), encoding="utf-8")
+
+    result = validate_config_file(config_path)
+    loaded = load_configuration(config_path).model.logs
+
+    assert result.valid
+    assert loaded is not None
+    assert loaded.source is None
+    assert [source.source_id for source in loaded.sources] == ["first", "second"]
+    assert [source.priority for source in loaded.sources] == [10, 100]
+    assert loaded.sources[1].source.path == tmp_path / "second.txt"
+    assert loaded.replay.start_at == "now"
+
+
+def test_multiple_log_sources_reject_duplicate_identifiers(tmp_path: Path) -> None:
+    """Duplicate source identifiers fail semantic validation before typed loading."""
+
+    (tmp_path / "events.txt").write_text("+0 event\n", encoding="utf-8")
+    common_source = {"path": "events.txt", "format": "%t %m"}
+    document = {
+        "schema_version": 1,
+        "logs": {
+            "enabled": True,
+            "sources": [
+                {"id": "duplicate", "source": common_source},
+                {"id": "duplicate", "source": common_source},
+            ],
+            "outputs": [{"type": "stdout"}],
+        },
+    }
+    config_path = tmp_path / "invalid-multi.json"
+    config_path.write_text(json.dumps(document), encoding="utf-8")
+
+    result = validate_config_file(config_path)
+
+    assert not result.valid
+    assert result.errors[0].message == "duplicate log source id: duplicate"
+
+
+def test_log_configuration_rejects_legacy_and_multiple_sources(tmp_path: Path) -> None:
+    """Schema validation requires exactly one of the legacy and multi-source forms."""
+
+    (tmp_path / "events.txt").write_text("+0 event\n", encoding="utf-8")
+    source = {"path": "events.txt", "format": "%t %m"}
+    document = {
+        "schema_version": 1,
+        "logs": {
+            "enabled": True,
+            "source": source,
+            "sources": [{"id": "other", "source": source}],
+            "outputs": [{"type": "stdout"}],
+        },
+    }
+    config_path = tmp_path / "ambiguous-sources.json"
+    config_path.write_text(json.dumps(document), encoding="utf-8")
+
+    result = validate_config_file(config_path)
+
+    assert not result.valid
+    assert any("supported form" in diagnostic.message for diagnostic in result.errors)
+
+
+def test_replay_start_requires_now_or_timezone_aware_rfc3339(log_config_factory) -> None:
+    """Ambiguous or malformed explicit scenario epochs are rejected during validation."""
+
+    config_path = log_config_factory({"logs": {"replay": {"start_at": "2026-01-01"}}})
+
+    result = validate_config_file(config_path)
+
+    assert not result.valid
+    assert result.errors[0].instance_path == "/logs/replay/start_at"
+
+
 def test_in_memory_validation_and_loading_for_embedding(log_config_factory) -> None:
     """Remote-config callers validate and type mappings relative to an explicit base path."""
 
@@ -156,3 +271,34 @@ def test_metric_source_jsonl_validation(tmp_path: Path) -> None:
     diagnostic = validate_config_file(config_path).errors[0]
     assert diagnostic.source.endswith("frames.jsonl")
     assert diagnostic.line == 1
+
+
+def test_trace_configuration_is_validated_resolved_and_typed(tmp_path: Path) -> None:
+    """A trace-only scenario validates its OTLP source and resolves the relative path."""
+
+    trace_path = tmp_path / "traces.ndjson"
+    trace_path.write_text(
+        '{"resourceSpans":[{"scopeSpans":[{"spans":[{'
+        '"traceId":"11111111111111111111111111111111",'
+        '"spanId":"2222222222222222",'
+        '"startTimeUnixNano":"100","endTimeUnixNano":"200"}]}]}]}\n',
+        encoding="utf-8",
+    )
+    document = {
+        "schema_version": 1,
+        "traces": {
+            "enabled": True,
+            "source": {"path": "traces.ndjson"},
+            "replay": {"cycles": 2},
+            "push": {"url": "http://collector:4318/v1/traces"},
+        },
+    }
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(document), encoding="utf-8")
+    result = validate_config_file(config_path)
+    loaded = load_configuration(config_path)
+    assert result.valid
+    assert loaded.model.traces is not None
+    assert loaded.model.traces.source is not None
+    assert loaded.model.traces.source.path == trace_path
+    assert loaded.model.traces.replay.cycles == 2

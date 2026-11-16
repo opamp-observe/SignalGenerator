@@ -32,7 +32,12 @@ from signal_generator.config.models import (
     ReplayConfig,
     RetryConfig,
     RuntimeConfig,
+    ScheduledLogSourceConfig,
     TlsConfig,
+    TracePushConfig,
+    TraceReplayConfig,
+    TracesConfig,
+    TraceSourceConfig,
 )
 from signal_generator.constants import (
     ENV_DEPLOYMENT_MODE,
@@ -44,16 +49,19 @@ from signal_generator.constants import (
     ENV_ROUTE_PREFIX,
     KEY_DEFAULTS,
     KEY_DEPLOYMENT,
+    KEY_ID,
     KEY_LOGS,
     KEY_METRICS,
     KEY_OUTPUTS,
     KEY_PATH,
+    KEY_PRIORITY,
     KEY_PULL,
     KEY_PUSH,
     KEY_REPLAY,
     KEY_RUNTIME,
     KEY_SCHEMA_VERSION,
     KEY_SOURCE,
+    KEY_SOURCES,
     KEY_TRACES,
 )
 
@@ -173,7 +181,31 @@ def _build_model(document: Mapping[str, Any], base_path: Path) -> AppConfig:
         deployment=DeploymentConfig(**deployment_data),
         logs=logs,
         metrics=_build_metrics(document.get(KEY_METRICS), base_path),
-        traces=copy.deepcopy(document.get(KEY_TRACES)),
+        traces=_build_traces(document.get(KEY_TRACES), base_path),
+    )
+
+
+def _build_traces(document: Any, base_path: Path) -> TracesConfig | None:
+    """Build trace source, replay, and OTLP/HTTP destination models."""
+
+    if not isinstance(document, Mapping):
+        return None
+    trace_data = dict(document)
+    source_data = dict(trace_data.get(KEY_SOURCE, {}))
+    source = None
+    if source_data:
+        source_path = Path(source_data[KEY_PATH]).expanduser()
+        source_data[KEY_PATH] = (
+            source_path if source_path.is_absolute() else (base_path / source_path).resolve()
+        )
+        source = TraceSourceConfig(**source_data)
+    push_data = trace_data.get(KEY_PUSH)
+    push = TracePushConfig(**dict(push_data)) if isinstance(push_data, Mapping) else None
+    return TracesConfig(
+        enabled=bool(trace_data.get("enabled", False)),
+        source=source,
+        replay=TraceReplayConfig(**dict(trace_data.get(KEY_REPLAY, {}))),
+        push=push,
     )
 
 
@@ -222,19 +254,29 @@ def _build_push(document: dict[str, Any], base_path: Path) -> PushConfig:
 def _build_logs(document: dict[str, Any], base_path: Path) -> LogsConfig:
     """Build log source, output, replay, and default models from the validated mapping."""
 
-    source_data = dict(document[KEY_SOURCE])
-    multiline = dict(source_data.pop("multiline", {}))
-    source_path = Path(source_data[KEY_PATH]).expanduser()
-    source_data[KEY_PATH] = (
-        source_path if source_path.is_absolute() else (base_path / source_path).resolve()
+    replay_data = dict(document.get(KEY_REPLAY, {}))
+    if KEY_SOURCES in document and "start_at" not in replay_data:
+        replay_data["start_at"] = "now"
+    replay = ReplayConfig(**replay_data)
+    source = (
+        _build_log_source(dict(document[KEY_SOURCE]), base_path)
+        if KEY_SOURCE in document
+        else None
     )
-    source_data["first_line_pattern"] = multiline.get("first_line_pattern")
+    sources = tuple(
+        ScheduledLogSourceConfig(
+            source_id=str(source_document[KEY_ID]),
+            priority=int(source_document.get(KEY_PRIORITY, replay.source_priority)),
+            source=_build_log_source(dict(source_document[KEY_SOURCE]), base_path),
+        )
+        for source_document in document.get(KEY_SOURCES, ())
+    )
     defaults = LogDefaults(**dict(document.get(KEY_DEFAULTS, {})))
-    replay = ReplayConfig(**dict(document.get(KEY_REPLAY, {})))
     outputs = tuple(_build_output(output, base_path) for output in document[KEY_OUTPUTS])
     return LogsConfig(
         enabled=bool(document.get("enabled", False)),
-        source=LogSourceConfig(**source_data),
+        source=source,
+        sources=sources,
         format=str(document.get("format", "%t %m")),
         datetime_format=str(document.get("datetime_format", "yyyy/MM/dd HH:mm:ss")),
         separator=str(document.get("separator", " ")),
@@ -242,6 +284,19 @@ def _build_logs(document: dict[str, Any], base_path: Path) -> LogsConfig:
         replay=replay,
         outputs=outputs,
     )
+
+
+def _build_log_source(document: dict[str, Any], base_path: Path) -> LogSourceConfig:
+    """Resolve and type one legacy or multi-source log input definition."""
+
+    source_data = document
+    multiline = dict(source_data.pop("multiline", {}))
+    source_path = Path(source_data[KEY_PATH]).expanduser()
+    source_data[KEY_PATH] = (
+        source_path if source_path.is_absolute() else (base_path / source_path).resolve()
+    )
+    source_data["first_line_pattern"] = multiline.get("first_line_pattern")
+    return LogSourceConfig(**source_data)
 
 
 def _build_output(document: Mapping[str, Any], base_path: Path) -> OutputConfig:

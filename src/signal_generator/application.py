@@ -16,6 +16,7 @@ from signal_generator.config.models import AppConfig
 from signal_generator.lifecycle import ShutdownController
 from signal_generator.logs.scheduler import replay_logs
 from signal_generator.metrics.runtime import run_metric_runtime
+from signal_generator.traces.replay import TraceReplayControls, replay_traces
 
 LOGGER = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ def _has_enabled_signal(config: AppConfig) -> bool:
     return bool(
         (config.logs is not None and config.logs.enabled)
         or (config.metrics is not None and config.metrics.enabled)
+        or (config.traces is not None and config.traces.enabled)
     )
 
 
@@ -65,6 +67,17 @@ def _create_replay_tasks(config: AppConfig, stop_event: asyncio.Event) -> list[a
             asyncio.create_task(
                 run_metric_runtime(config.metrics, stop_event),
                 name="signal-generator-metrics",
+            )
+        )
+    if config.traces and config.traces.enabled:
+        LOGGER.debug("starting trace replay")
+        tasks.append(
+            asyncio.create_task(
+                replay_traces(
+                    config.traces,
+                    controls=TraceReplayControls(stop_event=stop_event),
+                ),
+                name="signal-generator-traces",
             )
         )
     return tasks

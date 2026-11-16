@@ -1,0 +1,2 @@
+{"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"signal-generator-example"}}]},"scopeSpans":[{"scope":{"name":"example"},"spans":[{"traceId":"11111111111111111111111111111111","spanId":"2222222222222222","name":"example-span","kind":1,"startTimeUnixNano":"1783675550000000000","endTimeUnixNano":"1783675550050000000","events":[{"timeUnixNano":"1783675550025000000","name":"example-event"}],"status":{}}]}]}]}
+

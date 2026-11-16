@@ -16,6 +16,7 @@ from signal_generator.config.models import AppConfig
 from signal_generator.logs.scheduler import replay_logs
 from signal_generator.metrics.exposition import render_registry
 from signal_generator.metrics.runtime import MetricReplayRuntime
+from signal_generator.traces.replay import TraceReplayControls, replay_traces
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +43,7 @@ class SignalGeneratorRuntime:
         self._stop_event = asyncio.Event()
         self._metric_runtime: MetricReplayRuntime | None = None
         self._log_task: asyncio.Task[int] | None = None
+        self._trace_task: asyncio.Task[int] | None = None
         self._running = False
         self._ready = False
         self._restart_count = 0
@@ -85,12 +87,25 @@ class SignalGeneratorRuntime:
                 replay_logs(self.config.logs, stop_event=self._stop_event),
                 name=f"signal-generator-logs-{self.runtime_id}",
             )
+        if self.config.traces and self.config.traces.enabled:
+            self._trace_task = asyncio.create_task(
+                replay_traces(
+                    self.config.traces,
+                    controls=TraceReplayControls(stop_event=self._stop_event),
+                ),
+                name=f"signal-generator-traces-{self.runtime_id}",
+            )
 
     async def stop(self) -> None:
         """Stop and await every owned task; repeated calls are safe."""
 
         async with self._lifecycle_lock:
-            if not self._running and self._metric_runtime is None and self._log_task is None:
+            if (
+                not self._running
+                and self._metric_runtime is None
+                and self._log_task is None
+                and self._trace_task is None
+            ):
                 return
             self._ready = False
             self._stop_event.set()
@@ -103,6 +118,9 @@ class SignalGeneratorRuntime:
         if self._log_task:
             await self._log_task
             self._log_task = None
+        if self._trace_task:
+            await self._trace_task
+            self._trace_task = None
         if self._metric_runtime:
             await self._metric_runtime.close(self._stop_event)
             self._metric_runtime = None
@@ -138,7 +156,8 @@ class SignalGeneratorRuntime:
 
         metric_ready = self._metric_runtime is None or self._metric_runtime.ready
         log_ready = self._log_task is None or not self._log_task.done()
-        ready = self._ready and metric_ready and log_ready
+        trace_ready = self._trace_task is None or not self._trace_task.done()
+        ready = self._ready and metric_ready and log_ready and trace_ready
         return RuntimeHealth(
             self.runtime_id,
             self._running,

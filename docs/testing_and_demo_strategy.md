@@ -333,6 +333,14 @@ docker compose -f tests/test-containers/phase5/compose.yaml --profile unified up
 6. Apply a logical restart and verify no host-process restart occurs.
 7. Stop Quart and assert all client, heartbeat, replay, and output tasks are awaited.
 
+### 9.5 Synchronized metrics and looping traces
+
+The `tests/test-containers/otel-replay` scenario uses metric and OTLP trace fixtures anchored to the
+same source time. Metrics loop through the Pushgateway-compatible path while traces run two
+accelerated cycles against one dummy receiver. The receiver persists request summaries to an
+NDJSON file. Verification requires metric receipts, current shifted trace timestamps, stable
+parent/trace relationships within a cycle, and fresh trace IDs on the second cycle.
+
 ## 10. CI pipeline
 
 Recommended gates:
@@ -343,7 +351,7 @@ Recommended gates:
 4. Wheel and source-distribution build, metadata check, content audit, and clean install.
 5. Standalone and unified-simulator Quart integration tests.
 6. Container build.
-7. Pull, push, and embedded container end-to-end profiles.
+7. Pull, push, embedded, and synchronized metric/trace container end-to-end profiles.
 8. Image vulnerability scan, software bill of materials, and artifact attestation.
 
 The OpAMP integration is tested in the adapter pipeline. Its matrix installs released and candidate

@@ -17,8 +17,10 @@ The release workflow rejects lightweight, unsigned, unverified, or version-misma
 ## One-time repository configuration
 
 1. Protect `main`, both release tag patterns, and the `pypi` environment with required review.
-2. Configure PyPI Trusted Publishers for `.github/workflows/release.yml`, environment `pypi`, for
-   both Python projects. No long-lived PyPI token is stored.
+2. Configure PyPI Trusted Publishers for `.github/workflows/release.yml` and
+   `.github/workflows/publish-main.yml`, environment `pypi`. The signed release workflow owns both
+   Python projects; the main workflow owns only `signal-generator`. No long-lived PyPI token is
+   stored.
 3. Allow GitHub Actions to write packages, attestations, releases, and OIDC identity tokens only in
    the jobs that need those permissions.
 4. Enable immutable GHCR package tags and retain GitHub artifact attestations.
@@ -61,6 +63,20 @@ For the selected component, `.github/workflows/release.yml`:
 
 The core and adapter image jobs are separate. The adapter image checks out `opamp-observe/opamp-core`
 as a named build context; it does not copy adapter logic into that repository or the provider.
+
+## Main-branch wheel publication
+
+After the `quality` workflow succeeds for a push to `main`, `publish-main.yml` checks out the exact
+tested commit and queries PyPI for the core version in `pyproject.toml`. If that version is absent,
+it builds and validates the wheel, retains it briefly as a workflow artifact, and publishes through
+the protected `pypi` environment and OIDC Trusted Publishing. If the version already exists, the
+publication jobs skip because PyPI releases are immutable. Therefore a merge intended to publish
+must include a unique version bump.
+
+This path publishes only the core wheel. Signed tags remain the complete release path for source
+distributions, adapter packages, GHCR images, SBOMs, signatures, attestations, and GitHub releases.
+The signed publisher uses `skip-existing` so an identical wheel published from `main` is retained
+while the signed release adds its source distribution and completes the remaining release stages.
 
 ## Verification and rollback
 

@@ -1,12 +1,13 @@
 # SignalGenerator Python
 
-SignalGenerator replays log events and Prometheus metric snapshots from deterministic source
-files. The project is an enhanced Python successor to
+SignalGenerator replays log events, Prometheus metric snapshots, and OTLP JSON traces from
+deterministic source files. The project is an enhanced Python successor to
 [mp3monster/LogGenerator](https://github.com/mp3monster/LogGenerator).
 
 The CLI supports configuration validation, effective-configuration output, legacy property
-conversion, log replay, scrape-driven metric replay, and scheduled Pushgateway delivery. See
-[the design index](docs/index.md), [metrics operations](docs/metrics_replay.md), and the
+conversion, log replay, scrape-driven metric replay, scheduled Pushgateway delivery, and
+time-shifted OTLP/HTTP trace replay. See [the design index](docs/index.md),
+[metrics operations](docs/metrics_replay.md), [trace operations](docs/traces_replay.md), and the
 [startup script guide](scripts/README.md).
 
 Start with the task-oriented [user guide](docs/user_guide.md). Contributors should use the separate

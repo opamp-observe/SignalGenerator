@@ -91,9 +91,9 @@ an incidental process working directory.
 | `deployment` | object | No | Standalone or embedded host behavior. |
 | `logs` | object | No | Log replay configuration. |
 | `metrics` | object | No | Metric replay configuration. |
-| `traces` | object | No | Reserved namespace; `enabled` must remain false in schema version 1. |
+| `traces` | object | No | OTLP JSON Lines trace replay and OTLP/HTTP push configuration. |
 
-At least one of `logs.enabled` or `metrics.enabled` must be true.
+At least one of `logs.enabled`, `metrics.enabled`, or `traces.enabled` must be true.
 
 Unknown fields are rejected in strict mode. The normal `run` command uses strict mode so a typo
 cannot silently disable intended behavior. A permissive migration mode is tracked as
@@ -143,6 +143,31 @@ precedence.
 | `unescape_newlines` | boolean | No | Converts literal `\n` in messages to newlines. |
 | `multiline.first_line_pattern` | string | No | Regex identifying the start of a record. |
 
+An enabled log configuration accepts either the backward-compatible `source` object above or a
+non-empty `sources` array, but never both. Each multi-source entry contains a unique `id`, an
+optional integer `priority` (default `100`), and a nested `source` object using the same fields:
+
+```json
+"sources": [
+  {
+    "id": "frontend",
+    "priority": 10,
+    "source": {"path": "frontend.log", "format": "%t %m"}
+  },
+  {
+    "id": "database",
+    "priority": 20,
+    "source": {"path": "database.log", "format": "%t %m"}
+  }
+]
+```
+
+Multi-source records are normalized and ordered by scenario time, priority, source configuration
+order, and source sequence. Absolute sources may be timezone-aware or timezone-free, but one
+scenario cannot mix the two forms. Relative-only sources begin at scenario offset zero. An
+absolute timestamp cannot be introduced after a relative-only prefix because that alignment is
+ambiguous.
+
 Supported compatibility tokens:
 
 | Token | Meaning |
@@ -166,9 +191,15 @@ documented common patterns or return an actionable validation error when it cann
 | `default_interval_ms` | integer | `1000` | Zero or greater. |
 | `acceleration` | number | `1.0` | Greater than zero. |
 | `start_delay_ms` | integer | `0` | Zero or greater. |
-| `start_at` | RFC 3339 string or `"now"` | `now` | Anchor for time shifting. |
+| `start_at` | RFC 3339 string or `"now"` | mode-specific | Anchor for time shifting; omission preserves legacy source timestamps and means `now` for `sources`. |
 | `loop_gap_ms` | integer | `0` | Delay between cycles. |
 | `source_priority` | integer | `100` | Stable cross-source ordering tie-breaker. |
+
+`source_priority` applies to the legacy `source` form when it is explicitly shifted with
+`start_at`. Entries in `sources` use their own `priority`. Omitting `start_at` on the legacy form
+keeps the original adjacent-delay scheduler and preserves source timestamps. Setting it to `now`
+or a timezone-aware RFC 3339 timestamp opts that source into normalized scheduling and timestamp
+shifting.
 
 ### 4.3 Outputs
 
@@ -241,7 +272,24 @@ service beyond the local host.
 Authentication modes are mutually exclusive. Secrets are resolved at runtime and never written to
 the effective configuration.
 
-## 6. Metric-frame JSON Lines contract
+## 6. Trace section
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | boolean | `false` | Enables trace replay. |
+| `source.path` | string | required | OTLP JSON Lines capture path. |
+| `source.encoding` | string | `utf-8` | Source text encoding. |
+| `source.maximum_line_bytes` | integer | `10485760` | Safety limit for each OTLP request. |
+| `replay.cycles` | integer or `"forever"` | `1` | Complete passes through the capture. |
+| `replay.acceleration` | number | `1.0` | Divisor applied to source delays. |
+| `replay.loop_gap_ms` | integer | `0` | Delay between complete passes. |
+| `push.url` | URI | required | OTLP/HTTP JSON trace endpoint, normally `/v1/traces`. |
+| `push.timeout_seconds` | number | `5` | Per-request timeout. |
+
+Each line must be an OTLP JSON object with `resourceSpans` and at least one span or event timestamp.
+See [trace replay operations](traces_replay.md) for timestamp and identifier transformations.
+
+## 7. Metric-frame JSON Lines contract
 
 Every non-empty line is a JSON object representing one complete frame.
 
@@ -252,7 +300,7 @@ Every non-empty line is a JSON object representing one complete frame.
 The physical file contains one such object per line. The example is shown as a single line
 intentionally.
 
-### 6.1 Frame fields
+### 7.1 Frame fields
 
 | Field | Type | Required | Description |
 |---|---|---|---|
@@ -261,7 +309,7 @@ intentionally.
 | `metrics` | array | Yes | One or more metric family definitions. |
 | `metadata` | object | No | Free-form non-exported scenario metadata. |
 
-### 6.2 Metric family fields
+### 7.2 Metric family fields
 
 | Field | Type | Required | Description |
 |---|---|---|---|
@@ -273,7 +321,7 @@ intentionally.
 
 Metric names beginning with `signal_generator_` are reserved.
 
-### 6.3 Scalar samples
+### 7.3 Scalar samples
 
 Counters, gauges, and untyped metrics use:
 
@@ -302,7 +350,7 @@ Info samples use labels as the information payload and an optional stable series
 }
 ```
 
-### 6.4 Histogram samples
+### 7.4 Histogram samples
 
 ```json
 {
@@ -322,7 +370,7 @@ Info samples use labels as the information payload and an optional stable series
 Bucket bounds must be strictly increasing, bucket counts must be cumulative and non-decreasing,
 the `+Inf` count must equal `count`, and `sum` must be finite.
 
-### 6.5 Summary samples
+### 7.5 Summary samples
 
 ```json
 {
@@ -341,7 +389,7 @@ the `+Inf` count must equal `count`, and `sum` must be finite.
 
 Quantiles must be unique and between zero and one inclusive.
 
-### 6.6 Label rules
+### 7.6 Label rules
 
 - Names must match Prometheus label syntax.
 - `__name__` and labels beginning with `__` are rejected.
@@ -350,7 +398,7 @@ Quantiles must be unique and between zero and one inclusive.
 - Label values are converted only from JSON strings; implicit number-to-string conversion is not
   allowed.
 
-### 6.7 Numeric rules
+### 7.7 Numeric rules
 
 - JSON numbers and the strings `"NaN"`, `"+Inf"`, and `"-Inf"` are accepted where the metric type
   permits them.
@@ -358,7 +406,7 @@ Quantiles must be unique and between zero and one inclusive.
 - Histogram counts and summary counts are non-negative integers.
 - Ordinary sample values must be finite unless an explicit special value is used.
 
-## 7. Environment overrides
+## 8. Environment overrides
 
 Initial override set:
 
@@ -376,7 +424,7 @@ Initial override set:
 Secrets are referenced by named environment variables inside the configuration rather than through
 a large fixed list of secret-specific overrides.
 
-## 8. CLI contract
+## 9. CLI contract
 
 ```text
 signal-generator run --config PATH
@@ -404,7 +452,7 @@ file must still pass `validate` before use.
 The library also exposes a validation API that accepts a mapping and a base path. Embedded Quart
 registration uses that API directly; it must not invoke the CLI in-process.
 
-## 9. Validation behavior
+## 10. Validation behavior
 
 Validation runs in deterministic stages:
 
@@ -469,7 +517,7 @@ Exit codes:
 For the `validate` command only, normal outcomes are `0`, `2`, or `3`; it cannot return startup or
 runtime failure codes because it starts no runtime resources.
 
-## 10. Schema artifacts
+## 11. Schema artifacts
 
 Implementation should add:
 
@@ -486,7 +534,7 @@ contract tests must prove they accept and reject the same structural examples so
 The packaged schema is available through `importlib.resources`, allowing editors, CI, containers,
 and external tooling to validate the exact schema shipped with the installed wheel.
 
-Schema version 1 includes a reserved `traces` object with `enabled: false` and no payload fields.
-This reserves the namespace for [SG-012](roadmap.md) without accepting configurations that imply unsupported
-trace replay.
+Schema version 1 supports `traces.source`, `traces.replay`, and `traces.push`. The source is OTLP
+JSON Lines, replay owns cycles, acceleration, and loop gaps, and push names an OTLP/HTTP JSON URL
+and timeout. Detailed transformation rules are in [trace replay operations](traces_replay.md).
 

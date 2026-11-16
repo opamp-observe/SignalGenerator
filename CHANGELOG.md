@@ -41,6 +41,9 @@
   custom-action design for atomic configuration and test-data bundle delivery.
 - A default-closed GitHub repository-variable control for the unreleased composite OpAMP simulator
   integration, while retaining supervised adapter tests and all core and metrics-container gates.
+- A protected main-quality-success workflow that publishes a new core wheel version through PyPI
+  Trusted Publishing, plus a developer CLI for unit, container, audit, Pylint, and optional
+  Renovate checks.
 
 ### Fixed
 

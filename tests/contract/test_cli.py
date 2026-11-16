@@ -113,6 +113,7 @@ def test_version_uses_argparse_contract(capsys: pytest.CaptureFixture[str]) -> N
         "examples/logs/multiline/config.json",
         "examples/metrics/config.json",
         "examples/metrics/container-config.json",
+        "examples/traces/config.json",
     ),
 )
 def test_checked_in_examples_pass_full_validation(relative_path: str) -> None:

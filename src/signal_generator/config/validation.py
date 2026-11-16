@@ -14,6 +14,7 @@ import json
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
@@ -26,13 +27,16 @@ from signal_generator.constants import (
     KEY_CA_FILE,
     KEY_DEPLOYMENT,
     KEY_ENABLED,
+    KEY_ID,
     KEY_LOGS,
     KEY_METRICS,
     KEY_PATH,
     KEY_PULL,
     KEY_PUSH,
     KEY_SOURCE,
+    KEY_SOURCES,
     KEY_TLS,
+    KEY_TRACES,
     KEY_URL,
     MAXIMUM_VALIDATION_ERRORS,
     RESULT_VERSION,
@@ -281,10 +285,24 @@ def _semantic_diagnostics(document: Mapping[str, Any], source: Path) -> list[Dia
                 )
     logs = document.get(KEY_LOGS, {})
     if isinstance(logs, Mapping) and logs.get(KEY_ENABLED):
-        source_config = logs.get(KEY_SOURCE, {})
+        diagnostics.extend(_log_configuration_diagnostics(logs, source))
+    diagnostics.extend(_metric_configuration_diagnostics(document, source))
+    diagnostics.extend(_trace_configuration_diagnostics(document, source))
+    return diagnostics
+
+
+def _log_configuration_diagnostics(
+    logs: Mapping[str, Any], source: Path
+) -> list[Diagnostic]:
+    """Validate cross-source identity, replay start, and multiline expressions."""
+
+    diagnostics = _duplicate_log_source_diagnostics(logs, source)
+    diagnostics.extend(_replay_start_diagnostics(logs, source))
+    for source_config, pointer in _configured_log_sources(logs):
+        pattern_config = source_config.get("multiline", {})
         pattern = (
-            source_config.get("multiline", {}).get("first_line_pattern")
-            if isinstance(source_config, Mapping)
+            pattern_config.get("first_line_pattern")
+            if isinstance(pattern_config, Mapping)
             else None
         )
         if pattern:
@@ -296,11 +314,104 @@ def _semantic_diagnostics(document: Mapping[str, Any], source: Path) -> list[Dia
                         CODE_SEMANTIC,
                         source,
                         f"invalid multiline regex: {error}",
-                        "/logs/source/multiline/first_line_pattern",
+                        f"{pointer}/multiline/first_line_pattern",
                     )
                 )
-    diagnostics.extend(_metric_configuration_diagnostics(document, source))
     return diagnostics
+
+
+def _duplicate_log_source_diagnostics(
+    logs: Mapping[str, Any], source: Path
+) -> list[Diagnostic]:
+    """Reject duplicate multi-source identifiers before typed loading."""
+
+    configured_sources = logs.get(KEY_SOURCES, ())
+    if not isinstance(configured_sources, list):
+        return []
+    source_ids = [
+        source_item.get(KEY_ID)
+        for source_item in configured_sources
+        if isinstance(source_item, Mapping)
+    ]
+    duplicates = sorted(
+        {source_id for source_id in source_ids if source_ids.count(source_id) > 1}
+    )
+    return [
+        _simple_diagnostic(
+            CODE_SEMANTIC,
+            source,
+            f"duplicate log source id: {source_id}",
+            f"/logs/{KEY_SOURCES}",
+        )
+        for source_id in duplicates
+    ]
+
+
+def _replay_start_diagnostics(logs: Mapping[str, Any], source: Path) -> list[Diagnostic]:
+    """Require an explicit replay start to be ``now`` or timezone-aware RFC 3339."""
+
+    replay = logs.get("replay", {})
+    start_at = replay.get("start_at") if isinstance(replay, Mapping) else None
+    if start_at is None or start_at == "now":
+        return []
+    try:
+        parsed = datetime.fromisoformat(str(start_at).replace("Z", "+00:00"))
+    except ValueError:
+        parsed = None
+    if parsed is not None and parsed.utcoffset() is not None:
+        return []
+    return [
+        _simple_diagnostic(
+            CODE_SEMANTIC,
+            source,
+            "replay start_at must be 'now' or a timezone-aware RFC 3339 timestamp",
+            "/logs/replay/start_at",
+        )
+    ]
+
+
+def _configured_log_sources(
+    logs: Mapping[str, Any],
+) -> tuple[tuple[Mapping[str, Any], str], ...]:
+    """Return legacy and multi-source mappings with stable diagnostic pointers."""
+
+    source_configs: list[tuple[Mapping[str, Any], str]] = []
+    legacy_source = logs.get(KEY_SOURCE)
+    if isinstance(legacy_source, Mapping):
+        source_configs.append((legacy_source, "/logs/source"))
+    configured_sources = logs.get(KEY_SOURCES, ())
+    if isinstance(configured_sources, list):
+        for source_index, source_item in enumerate(configured_sources):
+            nested_source = (
+                source_item.get(KEY_SOURCE) if isinstance(source_item, Mapping) else None
+            )
+            if isinstance(nested_source, Mapping):
+                source_configs.append(
+                    (nested_source, f"/logs/{KEY_SOURCES}/{source_index}/{KEY_SOURCE}")
+                )
+    return tuple(source_configs)
+
+
+def _trace_configuration_diagnostics(
+    document: Mapping[str, Any], source: Path
+) -> list[Diagnostic]:
+    """Reject trace destinations that are not HTTP OTLP endpoints."""
+
+    traces = document.get(KEY_TRACES, {})
+    if not isinstance(traces, Mapping) or not traces.get(KEY_ENABLED):
+        return []
+    push = traces.get(KEY_PUSH, {})
+    push_url = str(push.get(KEY_URL, "")) if isinstance(push, Mapping) else ""
+    if push_url.startswith(("http://", "https://")):
+        return []
+    return [
+        _simple_diagnostic(
+            CODE_SEMANTIC,
+            source,
+            "trace push URL must use http or https",
+            "/traces/push/url",
+        )
+    ]
 
 
 def _metric_configuration_diagnostics(
@@ -342,18 +453,41 @@ def _metric_configuration_diagnostics(
 def _source_diagnostics(document: Mapping[str, Any], config_path: Path) -> list[Diagnostic]:
     """Validate referenced log and metric sources without creating runtime resources."""
 
-    diagnostics: list[Diagnostic] = []
     base_path = config_path.parent
+    return [
+        *_log_source_diagnostics(document, base_path),
+        *_metric_config_source_diagnostics(document, base_path),
+        *_trace_config_source_diagnostics(document, base_path),
+    ]
+
+
+def _log_source_diagnostics(
+    document: Mapping[str, Any], base_path: Path
+) -> list[Diagnostic]:
+    """Validate an enabled log source's readability."""
+
     logs = document.get(KEY_LOGS, {})
     if isinstance(logs, Mapping) and logs.get(KEY_ENABLED):
-        source = logs.get(KEY_SOURCE, {})
-        if isinstance(source, Mapping):
-            source_path = _resolve_source_path(base_path, source.get(KEY_PATH))
+        diagnostics: list[Diagnostic] = []
+        for source_config, pointer in _configured_log_sources(logs):
+            source_path = _resolve_source_path(base_path, source_config.get(KEY_PATH))
             diagnostics.extend(
                 _readability_diagnostics(
-                    source_path, source.get("encoding", "utf-8"), "/logs/source/path"
+                    source_path,
+                    source_config.get("encoding", "utf-8"),
+                    f"{pointer}/path",
                 )
             )
+        return diagnostics
+    return []
+
+
+def _metric_config_source_diagnostics(
+    document: Mapping[str, Any], base_path: Path
+) -> list[Diagnostic]:
+    """Validate enabled metric data and optional TLS certificate sources."""
+
+    diagnostics: list[Diagnostic] = []
     metrics = document.get(KEY_METRICS, {})
     if isinstance(metrics, Mapping) and metrics.get(KEY_ENABLED):
         metric_source = metrics.get(KEY_SOURCE, {})
@@ -373,6 +507,42 @@ def _source_diagnostics(document: Mapping[str, Any], config_path: Path) -> list[
                     )
                 )
     return diagnostics
+
+
+def _trace_config_source_diagnostics(
+    document: Mapping[str, Any], base_path: Path
+) -> list[Diagnostic]:
+    """Validate an enabled trace source's OTLP JSON Lines content."""
+
+    traces = document.get(KEY_TRACES, {})
+    if isinstance(traces, Mapping) and traces.get(KEY_ENABLED):
+        trace_source = traces.get(KEY_SOURCE, {})
+        if isinstance(trace_source, Mapping):
+            source_path = _resolve_source_path(base_path, trace_source.get(KEY_PATH))
+            return _trace_source_diagnostics(source_path, trace_source)
+    return []
+
+
+def _trace_source_diagnostics(path: Path, source: Mapping[str, Any]) -> list[Diagnostic]:
+    """Load an OTLP JSON Lines source to validate its shape and bounds."""
+
+    from signal_generator.config.models import TraceSourceConfig  # pylint: disable=import-outside-toplevel
+    from signal_generator.traces.source import (  # pylint: disable=import-outside-toplevel
+        TraceDataError,
+        load_trace_records,
+    )
+
+    try:
+        load_trace_records(
+            TraceSourceConfig(
+                path=path,
+                encoding=str(source.get("encoding", "utf-8")),
+                maximum_line_bytes=int(source.get("maximum_line_bytes", 10_485_760)),
+            )
+        )
+    except (TraceDataError, OSError, UnicodeError) as error:
+        return [_simple_diagnostic(CODE_SOURCE, path, str(error), "/traces/source/path")]
+    return []
 
 
 def _resolve_source_path(base_path: Path, configured_path: Any) -> Path:

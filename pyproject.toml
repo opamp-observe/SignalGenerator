@@ -5,12 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "signal-generator"
 version = "0.1.0"
-description = "Replay logs and Prometheus metric frames for observability testing"
+description = "Replay logs, Prometheus metric frames, and OTLP traces for observability testing"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 authors = [{ name = "Phil Wilkins" }]
-keywords = ["logging", "metrics", "prometheus", "replay", "testing"]
+keywords = ["logging", "metrics", "opentelemetry", "prometheus", "replay", "testing", "traces"]
 dependencies = [
   "httpx>=0.27",
   "jsonschema>=4.23",

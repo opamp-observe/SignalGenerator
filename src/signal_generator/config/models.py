@@ -63,6 +63,21 @@ class LogSourceConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class ScheduledLogSourceConfig:
+    """Identify one configured log source and its cross-source merge priority.
+
+    Attributes:
+        source_id: Unique identifier used in diagnostics and deterministic scheduling.
+        priority: Lower values are emitted first when normalized timestamps match.
+        source: File location and token grammar for this source.
+    """
+
+    source_id: str
+    priority: int
+    source: LogSourceConfig
+
+
+@dataclass(frozen=True, slots=True)
 class ReplayConfig:
     """Cycle count and monotonic scheduling controls for log replay."""
 
@@ -70,7 +85,9 @@ class ReplayConfig:
     default_interval_ms: int = DEFAULT_INTERVAL_MILLISECONDS
     acceleration: float = DEFAULT_ACCELERATION
     start_delay_ms: int = 0
+    start_at: str | None = None
     loop_gap_ms: int = 0
+    source_priority: int = 100
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,7 +124,8 @@ class LogsConfig:
     """Complete log parsing, formatting, scheduling, and output configuration."""
 
     enabled: bool
-    source: LogSourceConfig
+    source: LogSourceConfig | None = None
+    sources: tuple[ScheduledLogSourceConfig, ...] = ()
     format: str = "%t %m"
     datetime_format: str = DEFAULT_DATETIME_FORMAT
     separator: str = " "
@@ -184,6 +202,42 @@ class MetricsConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class TraceSourceConfig:
+    """OTLP JSON Lines source and bounded loading controls."""
+
+    path: Path
+    encoding: str = "utf-8"
+    maximum_line_bytes: int = DEFAULT_MAXIMUM_LINE_BYTES
+
+
+@dataclass(frozen=True, slots=True)
+class TraceReplayConfig:
+    """Trace cycle count, scheduling acceleration, and inter-cycle gap."""
+
+    cycles: int | str = 1
+    acceleration: float = DEFAULT_ACCELERATION
+    loop_gap_ms: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class TracePushConfig:
+    """OTLP/HTTP JSON destination configuration."""
+
+    url: str
+    timeout_seconds: float = DEFAULT_OUTPUT_TIMEOUT_SECONDS
+
+
+@dataclass(frozen=True, slots=True)
+class TracesConfig:
+    """Complete OTLP trace source, timing, and delivery configuration."""
+
+    enabled: bool
+    source: TraceSourceConfig | None = None
+    replay: TraceReplayConfig = field(default_factory=TraceReplayConfig)
+    push: TracePushConfig | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class AppConfig:
     """Top-level typed configuration required by implemented phases."""
 
@@ -192,4 +246,4 @@ class AppConfig:
     deployment: DeploymentConfig
     logs: LogsConfig | None
     metrics: MetricsConfig | None
-    traces: dict[str, Any] | None
+    traces: TracesConfig | None

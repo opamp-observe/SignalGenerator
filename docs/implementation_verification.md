@@ -2,12 +2,12 @@
 
 ## 1. Audit scope and result
 
-This audit compares every phase deliverable, exit gate, and final definition-of-done statement in
-[implementation_plan.md](implementation_plan.md) with the checked-in source, tests, workflows,
-packages, containers, documentation, and generic changes in the companion
-`opamp-observe/opamp-core` checkout.
+This audit records the completed phased plan that preceded the concise remaining-work list in
+[implementation_plan.md](implementation_plan.md). It compares those former phase deliverables and
+exit gates with the checked-in source, tests, workflows, packages, containers, documentation, and
+generic changes in the companion `opamp-observe/opamp-core` checkout.
 
-Result: the requested log replay, Prometheus pull, Pushgateway push, Quart embedding, independent
+Result: the requested log replay, Prometheus pull, Pushgateway push, OTLP trace replay, Quart embedding, independent
 OpAMP adapter, packaging, container, security, quality, and release-automation deliverables are
 implemented. Two broader accepted-design statements are not fully implemented and are now explicit
 P0 roadmap items rather than silently claimed complete:
@@ -38,7 +38,9 @@ missing repository code.
 ## 3. Deliverable and gate observations
 
 - Core tests currently exercise configuration, logs, every metric family, cursor concurrency,
-  lifecycle routes, Pushgateway behavior, embedding, failure injection, and release contracts.
+  lifecycle routes, Pushgateway behavior, OTLP timestamp/identity rewriting, embedding, failure
+  injection, and release contracts. The synchronized container test sends metrics and two trace
+  cycles to a file-backed dummy receiver.
 - Adapter tests exercise schema-only/full validation, installed discovery, supervised lifecycle,
   invalid remote configuration, passive health, unified routes, and deterministic shutdown.
 - The cloud regression workflow can target an ephemeral AWS or Azure self-hosted runner and retains
@@ -49,11 +51,12 @@ missing repository code.
 - Copyright and project metadata in tracked content and current release archives use `opamp.info`;
   references to the original `mp3monster/LogGenerator` repository remain only as source attribution.
 
-## 4. Definition-of-done audit
+## 4. Former definition-of-done audit
 
-All definition-of-done statements pass except the unqualified multi-signal timing statement. Current
-log replay preserves adjacent timestamp intervals and supports acceleration/loops; source-timed
-metric pushes are implemented. Cross-source normalization and merged ordering are SG-001.
+All statements in the former phased definition of done pass except its unqualified multi-signal
+timing statement. Current log replay preserves adjacent timestamp intervals and supports
+acceleration/loops; source-timed metric pushes are implemented. Cross-source normalization and
+merged ordering remain SG-001.
 
 The signed-tag workflow is implemented and statically validated. It can produce wheel, source,
 image, SBOM, checksums, signatures, and provenance, but the first production invocation is

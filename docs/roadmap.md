@@ -15,7 +15,7 @@ have passed. Priority `P0` closes an accepted-design or safety gap; `P1` is the 
 
 | ID | Priority | Status | Capability | Primary repository |
 |---|---|---|---|---|
-| SG-001 | P0 | planned | Multi-source timestamp normalization, merge scheduling, time shifting, and loop epochs | SignalGenerator-Python |
+| SG-001 | P0 | in_progress | Multi-source timestamp normalization, merge scheduling, time shifting, and loop epochs | SignalGenerator-Python |
 | SG-002 | P0 | planned | Explicit Prometheus/OpenMetrics HTTP content negotiation | SignalGenerator-Python |
 | SG-003 | P0 | planned | OpAMP custom action handlers for receiving configuration and test-data files | `integrations/opamp-simulator` |
 | SG-004 | P1 | proposed | Prometheus remote-write push adapter | SignalGenerator-Python |
@@ -26,7 +26,7 @@ have passed. Priority `P0` closes an accepted-design or safety gap; `P1` is the 
 | SG-009 | P2 | proposed | Browser user interface | SignalGenerator-Python |
 | SG-010 | P1 | proposed | Authentication and authorization on local pull/lifecycle routes | SignalGenerator-Python |
 | SG-011 | P2 | proposed | Distributed cursor coordination across replicas | SignalGenerator-Python |
-| SG-012 | P2 | proposed | Trace-payload replay through the reserved `traces` namespace | SignalGenerator-Python |
+| SG-012 | P2 | complete | OTLP JSONL trace replay with time shifting and loop-safe identity renewal | SignalGenerator-Python |
 | SG-013 | P2 | proposed | Permissive legacy migration mode with explicit lossy-conversion diagnostics | SignalGenerator-Python |
 | SG-014 | P2 | proposed | Pushgateway additive `POST` method | SignalGenerator-Python |
 | SG-015 | P2 | proposed | Explicit Prometheus sample timestamps | SignalGenerator-Python |
@@ -52,8 +52,8 @@ Delivery scope:
 - reject or warn on timing fields that cannot affect the configured scenario; and
 - add fake-clock, tie-break, acceleration, cancellation, cycle, and schema/model-drift tests.
 
-Acceptance requires the corresponding definition-of-done statement in
-[implementation_plan.md](implementation_plan.md) to pass without qualification.
+Acceptance requires the complete delivery scope above plus schema, documentation, fake-clock,
+complexity, coverage, package, and applicable container gates to pass without qualification.
 
 ## 4. SG-002: OpenMetrics negotiation
 
@@ -160,10 +160,11 @@ validation API, introduce no manual bearer-token field, and remain outside the O
 Support deployment-managed authentication/authorization without exposing secrets in configuration
 output. Preserve unauthenticated loopback operation as an explicit development mode.
 
-### SG-012: traces
+### SG-012: traces (complete)
 
-Define a separate trace-frame schema, replay transport, scheduling semantics, limits, and
-interoperability target before allowing `traces.enabled: true`.
+The `traces` namespace accepts bounded OTLP JSON Lines captures, shifts all span and event times
+from the first-record anchor, preserves source pacing, renews related IDs per cycle, and delivers
+OTLP/HTTP JSON. Unit and synchronized file-sink container tests cover the contract.
 
 ### SG-013 through SG-016: bounded extensions
 

@@ -89,6 +89,18 @@ The complete pre-package gate is:
 python scripts/security_checks.py
 ```
 
+For a task-oriented local check runner, use:
+
+```text
+python scripts/dev.py
+python scripts/dev.py unit containers audit pylint renovate
+```
+
+The developer CLI runs unit tests without the repository-wide coverage threshold, the supported
+local container scenarios with guaranteed teardown, the core `pip-audit` and Pylint checks, and
+Renovate in dry-run mode when installed. Add `--include-unified --opamp-core-context ../opamp2` to
+include the companion-dependent unified container profile.
+
 It covers both distributions, branch coverage, cyclomatic complexity, source-security rules, and
 dependency auditing. Functions may be no worse than Radon B/McCabe 10, while module and package
 averages must remain A. Core branch coverage must remain at least 90%.

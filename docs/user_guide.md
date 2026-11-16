@@ -2,11 +2,12 @@
 
 ## What the tool does
 
-SignalGenerator replays two deterministic signal types:
+SignalGenerator replays three deterministic signal types:
 
 - log records to stdout, stderr, files, TCP, HTTP, Python logging, or installed output plugins; and
 - Prometheus metric snapshots from a JSON Lines file, advancing to the next snapshot on every
   `/metrics` scrape and independently on every successful scheduled push.
+- OTLP JSON trace export requests, shifted to current time and sent to an OTLP/HTTP endpoint.
 
 Use it for demonstrations, integration tests, dashboards, alert tests, and repeatable OpAMP client
 simulations. Health and readiness requests never consume a metric frame.
@@ -125,6 +126,14 @@ Passwords and bearer tokens are read only from the environment variable named by
 TLS verification is enabled by default. Detailed fields and examples are in
 [metrics replay operations](metrics_replay.md).
 
+## Replay traces
+
+Set `traces.enabled`, select an OTLP JSON Lines source, and configure the collector's HTTP
+`/v1/traces` URL. SignalGenerator anchors the capture's first timestamp to now, preserves original
+spacing (optionally accelerated), and shifts span starts, span ends, and event timestamps by the
+same delta. On every configured cycle it consistently remaps trace, span, parent, and link IDs so
+looped requests form new traces. See [trace replay operations](traces_replay.md).
+
 ## Run the container demonstrations
 
 Use one profile at a time because the demo uses fixed host ports:
@@ -133,6 +142,8 @@ Use one profile at a time because the demo uses fixed host ports:
 python scripts/run_regression.py --profile pull
 python scripts/run_regression.py --profile push
 python scripts/run_regression.py --profile unified --opamp-core-context ../opamp2
+docker compose -f tests/test-containers/otel-replay/compose.yaml up --build --detach --wait
+python tests/test-containers/otel-replay/verify.py
 ```
 
 `run_regression.py` builds the images, waits for readiness, verifies public Prometheus or

@@ -19,8 +19,8 @@ implemented through the phased gates below.
   for supervised-process and unified-simulator Quart deployments.
 - [UML package and deployment architecture](uml_architecture.md): colour-coded package dependencies
   and standalone, supervised, and unified deployment views.
-- [Implementation plan](implementation_plan.md): phased delivery, acceptance gates, risks, and
-  decisions that must remain visible during implementation.
+- [Implementation plan](implementation_plan.md): concise backlog of functionality that remains to
+  be implemented, linked to authoritative roadmap scope.
 - [Startup scripts](../scripts/README.md): PowerShell, Windows Command Prompt, and Bash launchers
   for the standalone deployment.
 - [Log compatibility](log_compatibility.md): implemented original behavior and deliberate Python
@@ -28,6 +28,8 @@ implemented through the phased gates below.
 - [Migration guide](migration_guide.md): legacy property conversion and upgrade checks.
 - [Metrics replay operations](metrics_replay.md): JSONL replay, pull routes, Pushgateway delivery,
   EOF behavior, diagnostics, and the NGINX container demonstration.
+- [Trace replay operations](traces_replay.md): OTLP JSONL loading, timestamp shifting, pacing,
+  loop identity renewal, and OTLP/HTTP delivery.
 - [User guide](user_guide.md): installation, validation, log and metric replay, containers, OpAMP
   modes, and troubleshooting.
 - [Development setup](development_setup.md): environment bootstrap, local quality gates, package

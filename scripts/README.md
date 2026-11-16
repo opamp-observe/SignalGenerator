@@ -40,3 +40,20 @@ relative to its own location, so it may be invoked from another working director
 
 These launchers are for the standalone deployment. The separately packaged OpAMP adapter owns its
 own supervised and unified startup commands.
+
+## Developer check CLI
+
+Use the active project interpreter to run the common local gates:
+
+```text
+python scripts/dev.py
+python scripts/dev.py unit pylint audit renovate
+python scripts/dev.py containers
+python scripts/dev.py containers --include-unified --opamp-core-context ../opamp2
+```
+
+With no task arguments, the command runs unit tests, the pull/push/OTLP container scenarios,
+`pip-audit`, Pylint, and a Renovate dry run in that order. Renovate is optional: when its executable
+is not on `PATH`, the task reports a successful skip. The unified OpAMP container is excluded by
+default because it requires the companion checkout and unreleased composite APIs. Every Compose
+scenario uses an isolated project name and is torn down even after startup or verification failure.

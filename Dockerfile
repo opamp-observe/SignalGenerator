@@ -19,7 +19,7 @@ ARG BUILD_REVISION=unknown
 ARG BUILD_SOURCE=https://github.com/opamp-observe/SignalGenerator-Python
 
 LABEL org.opencontainers.image.title="SignalGenerator Python" \
-    org.opencontainers.image.description="Deterministic log and Prometheus metric replay" \
+    org.opencontainers.image.description="Deterministic log, Prometheus metric, and OTLP trace replay" \
     org.opencontainers.image.version="${BUILD_VERSION}" \
     org.opencontainers.image.revision="${BUILD_REVISION}" \
     org.opencontainers.image.source="${BUILD_SOURCE}" \

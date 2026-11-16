@@ -102,6 +102,18 @@ jobs:
       - if: always()
         run: docker compose -f tests/test-containers/phase5/compose.yaml --profile ${{ matrix.profile }} down --remove-orphans
 
+  otel-replay-container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: docker compose -f tests/test-containers/otel-replay/compose.yaml up --build --detach --wait
+      - run: python tests/test-containers/otel-replay/verify.py
+      - if: always()
+        run: docker compose -f tests/test-containers/otel-replay/compose.yaml down --remove-orphans --volumes
+
   unified-container:
     # Unset/false is intentional until opamp-core publishes the composite simulator APIs.
     # Set this repository variable to true to restore the integration job after that release.

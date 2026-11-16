@@ -76,6 +76,27 @@ def test_release_workflow_contains_required_supply_chain_controls() -> None:
         "actions/attest@v4",
         "sigstore/cosign-installer@v4.1.2",
         "SHA256SUMS",
+        "skip-existing: true",
+    )
+    assert all(fragment in workflow for fragment in required_fragments)
+
+
+def test_main_wheel_publication_requires_successful_quality_and_trusted_publishing() -> None:
+    """Main publication must use the tested commit, immutable versions, and scoped OIDC."""
+
+    workflow = Path(".github/workflows/publish-main.yml").read_text(encoding="utf-8")
+    required_fragments = (
+        "workflow_run:",
+        "workflows: [quality]",
+        "branches: [main]",
+        "workflow_run.conclusion == 'success'",
+        "workflow_run.head_repository.full_name == github.repository",
+        "workflow_run.head_sha",
+        "python -m build --wheel",
+        "https://pypi.org/pypi/signal-generator/${version}/json",
+        "environment: pypi",
+        "id-token: write",
+        "pypa/gh-action-pypi-publish@release/v1",
     )
     assert all(fragment in workflow for fragment in required_fragments)
 

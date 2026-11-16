@@ -20,6 +20,7 @@ from signal_generator.config.models import (
     OutputConfig,
     ReplayConfig,
     RetryConfig,
+    ScheduledLogSourceConfig,
 )
 from signal_generator.logs.models import RenderedLogEvent
 from signal_generator.logs.outputs.base import LogOutput
@@ -99,6 +100,93 @@ async def test_cycles_timing_and_lifecycle(tmp_path: Path) -> None:
     assert sleeps == [0.02, 0.05, 0.03, 0.05]
     assert output.actions[0] == "open"
     assert output.actions[-1] == "close"
+
+
+@pytest.mark.asyncio
+async def test_multiple_sources_merge_by_timestamp_priority_and_loop_epoch(
+    tmp_path: Path,
+) -> None:
+    """Multi-source replay uses stable priority ties and accelerated monotonic loop gaps."""
+
+    primary_path = tmp_path / "primary.txt"
+    secondary_path = tmp_path / "secondary.txt"
+    primary_path.write_text(
+        "2026/01/01 00:00:00.000|primary-first\n"
+        "2026/01/01 00:00:00.100|primary-second\n",
+        encoding="utf-8",
+    )
+    secondary_path.write_text("2026/01/01 00:00:00.000|secondary\n", encoding="utf-8")
+    source_format = "yyyy/MM/dd HH:mm:ss.SSS"
+    output_config = OutputConfig("test")
+    config = LogsConfig(
+        enabled=True,
+        sources=(
+            ScheduledLogSourceConfig(
+                "primary",
+                20,
+                LogSourceConfig(
+                    primary_path,
+                    "%t|%m",
+                    datetime_format=source_format,
+                    separator="|",
+                ),
+            ),
+            ScheduledLogSourceConfig(
+                "secondary",
+                10,
+                LogSourceConfig(
+                    secondary_path,
+                    "%t|%m",
+                    datetime_format=source_format,
+                    separator="|",
+                ),
+            ),
+        ),
+        format="%m:%i:%j",
+        replay=ReplayConfig(cycles=2, acceleration=2.0, loop_gap_ms=30),
+        outputs=(output_config,),
+    )
+    sleeps: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        """Capture merged scenario timing without wall-clock delay."""
+
+        sleeps.append(seconds)
+
+    output = RecordingOutput()
+    emitted = await replay_logs(config, sleeper=fake_sleep, outputs=[output])
+
+    assert emitted == 6
+    assert output.events == [
+        "secondary:1:1",
+        "primary-first:1:2",
+        "primary-second:1:3",
+        "secondary:2:1",
+        "primary-first:2:2",
+        "primary-second:2:3",
+    ]
+    assert sleeps == [0.05, 0.015, 0.05]
+
+
+@pytest.mark.asyncio
+async def test_explicit_start_shifts_legacy_source_timestamps(tmp_path: Path) -> None:
+    """An explicit start opts a legacy source into timestamp shifting without changing its shape."""
+
+    source_path = tmp_path / "absolute.txt"
+    source_path.write_text("2025/01/01 10:00:00|event\n", encoding="utf-8")
+    output_config = OutputConfig("test")
+    config = LogsConfig(
+        enabled=True,
+        source=LogSourceConfig(source_path, "%t|%m", separator="|"),
+        format="%t %m",
+        replay=ReplayConfig(start_at="2026-02-03T04:05:06+00:00"),
+        outputs=(output_config,),
+    )
+    output = RecordingOutput()
+
+    await replay_logs(config, outputs=[output])
+
+    assert output.events == ["2026/02/03 04:05:06 event"]
 
 
 @pytest.mark.asyncio

@@ -5,7 +5,7 @@
 SignalGenerator Python will be an enhanced Python implementation of
 [mp3monster/LogGenerator](https://github.com/mp3monster/LogGenerator). It will preserve the
 original tool's core purpose—replaying log events from source data into configurable outputs—and
-add deterministic Prometheus metrics replay.
+add deterministic Prometheus metrics and OpenTelemetry trace replay.
 
 The original tool supports file, HTTP, TCP, Java logging, standard output, standard error, and
 custom output destinations. Its timing is driven by source timestamps or a default offset, with
@@ -31,8 +31,7 @@ using a versioned configuration model and replaceable Python interfaces.
 - Keep OpAMP-specific composition in a separately built adapter module; SignalGenerator core and
   `opamp-observe/opamp-core` contain no SignalGenerator-specific cross-project extension logic.
 - Provide strong unit, contract, integration, and container end-to-end coverage.
-- Reserve stable interfaces and configuration namespaces for trace-payload replay under
-  [SG-012](roadmap.md), without claiming current trace support.
+- Replay OTLP JSON trace captures with current timestamps and loop-safe identities.
 - Replay every enabled signal type from one service and one coordinated lifecycle.
 - Provide documented reference configurations for common log formats.
 - Generate operational SignalGenerator metrics and allow them to be included in test output.
@@ -91,6 +90,9 @@ flowchart LR
     PushCursor --> PushScheduler[Push scheduler]
     PushScheduler --> PushAdapter[Pushgateway adapter]
 
+    TraceJsonl[OTLP traces JSONL] --> TraceScheduler[Trace replay scheduler]
+    TraceScheduler --> TracePush[OTLP HTTP JSON endpoint]
+
     App --> Standalone[Standalone HTTP adapter]
     App --> Embedded[Embedded Quart adapter]
     Standalone --> Health[GET /healthz and /readyz]
@@ -99,7 +101,7 @@ flowchart LR
     Adapter -. polls only .-> Health
 ```
 
-The log and metric paths share configuration, lifecycle, diagnostics, and shutdown handling. They
+The log, metric, and trace paths share configuration, lifecycle, diagnostics, and shutdown handling. They
 do not share source cursors or timing state.
 
 The application core must not depend on its HTTP host. `SignalGeneratorRuntime` owns configuration,
@@ -149,6 +151,9 @@ src/signal_generator/
     exposition.py
     push.py
     scheduler.py
+  traces/
+    source.py
+    replay.py
   health/
     __init__.py
     application.py
@@ -171,11 +176,9 @@ docs/
 The folders describe responsibility boundaries, not a mandate for one class per file. Small modules
 may be combined when that makes the implementation clearer.
 
-`signals.py` defines a small signal envelope and source/sink protocols shared by scheduled signal
-types. Logs implement the first scheduled signal type. Push metrics can participate when frames
-contain source timing; pull metrics remain demand-driven because a scrape is the required advance
-trigger. The trace namespace is reserved in configuration and protocols, but no trace parser,
-transport, or dependency is shipped until that feature is designed.
+Push metrics can use frame source timing; pull metrics remain demand-driven because a scrape is the
+required advance trigger. Trace replay reads OTLP JSON export requests, applies one current-time
+delta per cycle, preserves source pacing, and sends each record through OTLP/HTTP JSON.
 
 ## 7. Process lifecycle
 
@@ -190,7 +193,8 @@ transport, or dependency is shipped until that feature is designed.
 8. Start enabled replay tasks:
    - log scheduler,
    - pull exposition server,
-   - push scheduler.
+   - push scheduler,
+   - trace replay scheduler.
 9. Mark readiness only after all enabled sources and required listeners are ready.
 10. On `SIGINT` or `SIGTERM`, stop accepting work, allow bounded in-flight completion, close
     outputs, stop the HTTP server, and return a meaningful exit status.
@@ -526,10 +530,11 @@ source timestamp, source sequence, and immutable payload. A merge scheduler orde
 2. configured source priority,
 3. stable source sequence.
 
-Time shifting calculates one scenario offset from the earliest source timestamp to the configured
-replay start (default `now`) and applies that same offset to all timestamped signals. This preserves
-relative ordering across files and signal types. Acceleration scales elapsed intervals after the
-offset is applied.
+Time shifting calculates one scenario offset from the earliest source timestamp to an explicitly
+configured replay start and applies that same offset to all timestamped signals. This preserves
+relative ordering across files and signal types. Omitting the start on a legacy single-source log
+configuration retains its original timestamps and adjacent-delay behavior. Acceleration scales
+elapsed intervals after the offset is applied.
 
 Looping creates a new cycle epoch. The next cycle begins after the previous cycle's final scheduled
 timestamp plus the configured loop gap. It must not move timestamps backwards. Demand-driven metric
