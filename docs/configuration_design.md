@@ -254,10 +254,10 @@ service beyond the local host.
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `enabled` | boolean | `false` | Enables scheduled pushes. |
-| `protocol` | string | `pushgateway` | Initial supported value. |
-| `url` | string | Required | Pushgateway base URL. |
-| `job` | string | Required | Pushgateway job label. |
-| `grouping_key` | object | `{}` | Stable grouping labels. |
+| `protocol` | string | `pushgateway` | `pushgateway` or `otlp_http_json`. |
+| `url` | string | Required | Pushgateway base URL, or exact OTLP metric endpoint (normally `/v1/metrics`). |
+| `job` | string | Conditional | Required only for the Pushgateway job label. |
+| `grouping_key` | object | `{}` | Pushgateway grouping labels. |
 | `interval_seconds` | number | Required | Delay after each successful push. |
 | `timeout_seconds` | number | `5` | Per-request timeout. |
 | `method` | string | `replace` | `replace` uses PUT; additive POST is [SG-014](roadmap.md). |
@@ -283,6 +283,7 @@ the effective configuration.
 | `replay.cycles` | integer or `"forever"` | `1` | Complete passes through the capture. |
 | `replay.acceleration` | number | `1.0` | Divisor applied to source delays. |
 | `replay.loop_gap_ms` | integer | `0` | Delay between complete passes. |
+| `push.protocol` | string | `otlp_http_json` | OTLP/HTTP JSON is the supported trace push protocol. |
 | `push.url` | URI | required | OTLP/HTTP JSON trace endpoint, normally `/v1/traces`. |
 | `push.timeout_seconds` | number | `5` | Per-request timeout. |
 
