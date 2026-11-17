@@ -26,7 +26,7 @@ implemented through the phased gates below.
 - [Log compatibility](log_compatibility.md): implemented original behavior and deliberate Python
   differences.
 - [Migration guide](migration_guide.md): legacy property conversion and upgrade checks.
-- [Metrics replay operations](metrics_replay.md): JSONL replay, pull routes, Pushgateway delivery,
+- [Metrics replay operations](metrics_replay.md): JSONL replay, pull routes, Pushgateway and OTLP delivery,
   EOF behavior, diagnostics, and the NGINX container demonstration.
 - [Trace replay operations](traces_replay.md): OTLP JSONL loading, timestamp shifting, pacing,
   loop identity renewal, and OTLP/HTTP delivery.

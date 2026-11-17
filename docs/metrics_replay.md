@@ -58,11 +58,18 @@ The registry is isolated per runtime; default Python process/platform metrics ar
 The output is Prometheus text format with counter, gauge, untyped, info, histogram, and summary
 families supported by the frame schema.
 
-## Scheduled Pushgateway delivery
+## Scheduled push delivery
 
-Enable `metrics.push` and configure `url`, `job`, and `interval_seconds`. The adapter uses HTTP PUT
-replacement semantics at the deterministic grouping URL. Grouping-label names and values are URL
-escaped.
+Enable `metrics.push`, select a `protocol`, and configure `url` and `interval_seconds`.
+
+- `pushgateway` is the backward-compatible default. It additionally requires `job` and uses HTTP
+  PUT replacement semantics at a deterministic grouping URL. Grouping-label names and values are
+  URL escaped.
+- `otlp_http_json` sends a JSON-encoded OTLP `ExportMetricsServiceRequest` with HTTP POST to the
+  exact configured URL, normally `http://collector:4318/v1/metrics`. Gauges, counters, untyped
+  values, info metrics, cumulative histograms, and summaries are converted to their corresponding
+  OTLP data types. Each request uses one current wall-clock nanosecond timestamp for all points in
+  the frame.
 
 Basic authentication references its password by environment-variable name:
 
