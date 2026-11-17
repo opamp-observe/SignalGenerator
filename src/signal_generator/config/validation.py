@@ -417,7 +417,7 @@ def _trace_configuration_diagnostics(
 def _metric_configuration_diagnostics(
     document: Mapping[str, Any], source: Path
 ) -> list[Diagnostic]:
-    """Reject pull route collisions and unsupported Pushgateway URL schemes."""
+    """Reject pull route collisions and unsupported metric push URL schemes."""
 
     diagnostics: list[Diagnostic] = []
     metrics = document.get(KEY_METRICS, {})
@@ -443,7 +443,7 @@ def _metric_configuration_diagnostics(
                 _simple_diagnostic(
                     CODE_SEMANTIC,
                     source,
-                    "Pushgateway URL must use http or https",
+                    "metric push URL must use http or https",
                     "/metrics/push/url",
                 )
             )

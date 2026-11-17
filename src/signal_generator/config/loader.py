@@ -234,7 +234,7 @@ def _build_metrics(document: Any, base_path: Path) -> MetricsConfig | None:
 
 
 def _build_push(document: dict[str, Any], base_path: Path) -> PushConfig:
-    """Build nested authentication, TLS, and retry controls for Pushgateway."""
+    """Build nested authentication, TLS, and retry controls for metric push."""
 
     basic_auth_data = document.pop("basic_auth", None)
     basic_auth = BasicAuthConfig(**basic_auth_data) if basic_auth_data else None

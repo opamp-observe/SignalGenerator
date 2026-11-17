@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import datetime, timezone
 
 import httpx
@@ -23,7 +24,12 @@ from signal_generator.config.models import (
 )
 from signal_generator.metrics.exposition import ReplaySelfMetrics
 from signal_generator.metrics.models import MetricFamily, MetricFrame, MetricSample
-from signal_generator.metrics.push import PushConfigurationError, PushgatewayAdapter
+from signal_generator.metrics.otlp import metric_frame_to_otlp_json
+from signal_generator.metrics.push import (
+    OtlpHttpMetricAdapter,
+    PushConfigurationError,
+    PushgatewayAdapter,
+)
 from signal_generator.metrics.push_scheduler import PushLoopControl, run_push_loop
 from signal_generator.metrics.store import FrameStore
 
@@ -94,6 +100,98 @@ async def test_pushgateway_basic_auth_and_http_failure() -> None:
     await client.aclose()
 
 
+@pytest.mark.asyncio
+async def test_otlp_http_adapter_posts_export_request_with_push_timestamp() -> None:
+    """OTLP push posts JSON to the exact endpoint and timestamps points at delivery time."""
+
+    requests: list[httpx.Request] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={}, request=request)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    adapter = OtlpHttpMetricAdapter(
+        PushConfig(
+            enabled=True,
+            protocol="otlp_http_json",
+            url="http://collector:4318/v1/metrics",
+        ),
+        client=client,
+        clock=lambda: 123456789,
+    )
+    await adapter.push(_frame(7))
+    await adapter.close()
+    await client.aclose()
+
+    request = requests[0]
+    payload = json.loads(request.content)
+    point = payload["resourceMetrics"][0]["scopeMetrics"][0]["metrics"][0]["gauge"][
+        "dataPoints"
+    ][0]
+    assert request.method == "POST"
+    assert str(request.url) == "http://collector:4318/v1/metrics"
+    assert request.headers["Content-Type"] == "application/json"
+    assert point["asDouble"] == 7
+    assert point["timeUnixNano"] == "123456789"
+
+
+def test_otlp_serializer_maps_metric_data_types() -> None:
+    """All source family types map to valid OTLP JSON metric structures."""
+
+    families = (
+        MetricFamily(
+            "requests",
+            "counter",
+            "Requests.",
+            (MetricSample({"host": "one"}, value=3),),
+            "{request}",
+        ),
+        MetricFamily(
+            "latency",
+            "histogram",
+            "Latency.",
+            (
+                MetricSample(
+                    {},
+                    buckets=((0.1, 2), (0.5, 5), ("+Inf", 6)),
+                    sum_value=1.2,
+                    count=6,
+                ),
+            ),
+            "s",
+        ),
+        MetricFamily(
+            "size",
+            "summary",
+            "Size.",
+            (
+                MetricSample(
+                    {}, quantiles=((0.5, 4), (0.9, "+Inf")), sum_value=8, count=2
+                ),
+            ),
+        ),
+        MetricFamily(
+            "build",
+            "info",
+            "Build.",
+            (MetricSample({"host": "one"}, info={"version": "1.2"}),),
+        ),
+    )
+    metrics = metric_frame_to_otlp_json(MetricFrame(1, families), 99)["resourceMetrics"][
+        0
+    ]["scopeMetrics"][0]["metrics"]
+
+    assert metrics[0]["sum"]["aggregationTemporality"] == 2
+    histogram = metrics[1]["histogram"]["dataPoints"][0]
+    assert histogram["bucketCounts"] == ["2", "3", "1"]
+    assert histogram["explicitBounds"] == [0.1, 0.5]
+    assert metrics[2]["summary"]["dataPoints"][0]["quantileValues"][1]["value"] == "Infinity"
+    info_point = metrics[3]["gauge"]["dataPoints"][0]
+    assert info_point["asDouble"] == 1
+    assert [attribute["key"] for attribute in info_point["attributes"]] == ["host", "version"]
+
+
 def test_pushgateway_requires_configuration_and_secret_environment() -> None:
     """Missing endpoint fields and named secrets are classified before scheduling."""
 
@@ -130,6 +228,8 @@ def test_pushgateway_requires_configuration_and_secret_environment() -> None:
             ),
             {"PUSH_PASSWORD": "pass", "PUSH_TOKEN": "token"},
         )
+    with pytest.raises(PushConfigurationError, match="metric url"):
+        OtlpHttpMetricAdapter(PushConfig(enabled=True, protocol="otlp_http_json"))
 
 
 class RecordingAdapter:

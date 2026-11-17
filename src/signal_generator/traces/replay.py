@@ -23,6 +23,7 @@ from signal_generator.config.models import TracesConfig
 from signal_generator.traces.source import TIMESTAMP_KEYS, TraceRecord, load_trace_records
 
 ID_WIDTHS = {"traceId": 32, "spanId": 16, "parentSpanId": 16}
+OTLP_HTTP_JSON_PROTOCOL = "otlp_http_json"
 Sleeper = Callable[[float], Awaitable[None]]
 Clock = Callable[[], int]
 IdGenerator = Callable[[int], str]
@@ -71,6 +72,8 @@ async def replay_traces(
 
     if not config.enabled or config.source is None or config.push is None:
         raise TraceReplayError("trace replay requires enabled source and push configuration")
+    if config.push.protocol != OTLP_HTTP_JSON_PROTOCOL:
+        raise TraceReplayError(f"unsupported trace push protocol: {config.push.protocol}")
     records = load_trace_records(config.source)
     http_client = client or httpx.AsyncClient(timeout=config.push.timeout_seconds)
     replay_controls = controls or TraceReplayControls(id_generator=_new_identifier)

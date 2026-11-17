@@ -302,3 +302,39 @@ def test_trace_configuration_is_validated_resolved_and_typed(tmp_path: Path) -> 
     assert loaded.model.traces.source is not None
     assert loaded.model.traces.source.path == trace_path
     assert loaded.model.traces.replay.cycles == 2
+    assert loaded.model.traces.push is not None
+    assert loaded.model.traces.push.protocol == "otlp_http_json"
+
+
+def test_otlp_metric_push_validates_without_pushgateway_job(tmp_path: Path) -> None:
+    """OTLP metric push requires its endpoint and interval but no Pushgateway grouping job."""
+
+    metric_path = tmp_path / "metrics.ndjson"
+    metric_path.write_text(
+        '{"metrics":[{"name":"temperature","type":"gauge","help":"Temperature.",'
+        '"samples":[{"value":21.5}]}]}\n',
+        encoding="utf-8",
+    )
+    document = {
+        "schema_version": 1,
+        "metrics": {
+            "enabled": True,
+            "source": {"path": "metrics.ndjson", "eof": "stop"},
+            "push": {
+                "enabled": True,
+                "protocol": "otlp_http_json",
+                "url": "http://collector:4318/v1/metrics",
+                "interval_seconds": 1,
+            },
+        },
+    }
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(document), encoding="utf-8")
+
+    result = validate_config_file(config_path)
+    loaded = load_configuration(config_path)
+
+    assert result.valid
+    assert loaded.model.metrics is not None
+    assert loaded.model.metrics.push.protocol == "otlp_http_json"
+    assert loaded.model.metrics.push.job is None

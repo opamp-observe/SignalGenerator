@@ -174,7 +174,7 @@ class TlsConfig:
 
 @dataclass(frozen=True, slots=True)
 class PushConfig:
-    """Scheduled Pushgateway delivery configuration."""
+    """Scheduled Pushgateway or OTLP/HTTP JSON delivery configuration."""
 
     enabled: bool = False
     protocol: str = "pushgateway"
@@ -225,6 +225,7 @@ class TracePushConfig:
 
     url: str
     timeout_seconds: float = DEFAULT_OUTPUT_TIMEOUT_SECONDS
+    protocol: str = "otlp_http_json"
 
 
 @dataclass(frozen=True, slots=True)

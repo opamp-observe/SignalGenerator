@@ -46,8 +46,14 @@ def main() -> None:
         for item in traces
     ):
         raise RuntimeError("trace timestamps were not shifted near receiver time")
-    if not any("synchronized_fixture" in item["body"] for item in metrics):
+    if not any("synchronized_fixture" in item["metric_names"] for item in metrics):
         raise RuntimeError("metric replay did not reach the dummy receiver")
+    if any(
+        not item["timestamps"]
+        or abs(item["received_at_unix_nano"] - item["timestamps"][0]) > 5_000_000_000
+        for item in metrics
+    ):
+        raise RuntimeError("metric timestamps were not generated near receiver time")
     print("synchronized metrics and looping traces container verification passed")
 
 

@@ -5,7 +5,7 @@
 # Unless required by applicable law or agreed to in writing, software distributed under the
 # License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND.
 
-"""Tiny test receiver that persists OTLP traces and Prometheus push receipts."""
+"""Tiny test receiver that persists OTLP/HTTP JSON trace and metric receipts."""
 
 from __future__ import annotations
 
@@ -26,6 +26,24 @@ def _spans(payload: dict[str, Any]):
             yield from scope.get("spans", [])
 
 
+def _metrics(payload: dict[str, Any]):
+    """Yield metrics from the OTLP JSON resource/scope hierarchy."""
+
+    for resource in payload.get("resourceMetrics", []):
+        for scope in resource.get("scopeMetrics", []):
+            yield from scope.get("metrics", [])
+
+
+def _metric_timestamps(metric: dict[str, Any]) -> list[int]:
+    """Collect point timestamps from whichever OTLP metric data type is present."""
+
+    timestamps: list[int] = []
+    for data_type in ("gauge", "sum", "histogram", "summary"):
+        for point in metric.get(data_type, {}).get("dataPoints", []):
+            timestamps.append(int(point["timeUnixNano"]))
+    return timestamps
+
+
 class ReceiptHandler(BaseHTTPRequestHandler):
     """Accept configured replay requests and expose persisted receipt summaries."""
 
@@ -42,12 +60,28 @@ class ReceiptHandler(BaseHTTPRequestHandler):
         self._respond(404, b"not found\n", "text/plain")
 
     def do_POST(self) -> None:  # noqa: N802 - stdlib handler contract
-        """Persist one OTLP JSON trace receipt."""
+        """Persist one OTLP JSON trace or metric receipt."""
 
-        if self.path != "/v1/traces":
+        if self.path not in {"/v1/traces", "/v1/metrics"}:
             self._respond(404, b"not found\n", "text/plain")
             return
         payload = json.loads(self._body())
+        if self.path == "/v1/metrics":
+            metrics = list(_metrics(payload))
+            self._append(
+                {
+                    "signal": "metrics",
+                    "metric_names": sorted(metric["name"] for metric in metrics),
+                    "timestamps": sorted(
+                        timestamp
+                        for metric in metrics
+                        for timestamp in _metric_timestamps(metric)
+                    ),
+                    "received_at_unix_nano": time.time_ns(),
+                }
+            )
+            self._respond(200, b"{}", "application/json")
+            return
         spans = list(_spans(payload))
         self._append(
             {
@@ -59,12 +93,6 @@ class ReceiptHandler(BaseHTTPRequestHandler):
             }
         )
         self._respond(200, b"{}", "application/json")
-
-    def do_PUT(self) -> None:  # noqa: N802 - stdlib handler contract
-        """Persist one Pushgateway-compatible metric receipt."""
-
-        self._append({"signal": "metrics", "path": self.path, "body": self._body().decode()})
-        self._respond(202, b"accepted\n", "text/plain")
 
     def log_message(self, message_format: str, *args: Any) -> None:
         """Keep container logs focused on persisted signal receipts."""

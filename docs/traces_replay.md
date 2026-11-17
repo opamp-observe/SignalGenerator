@@ -12,7 +12,11 @@ encoding accepted by an OTLP/HTTP `/v1/traces` endpoint. Downloaded capture file
     "enabled": true,
     "source": {"path": "clean-slice.ndjson"},
     "replay": {"cycles": 2, "acceleration": 10, "loop_gap_ms": 100},
-    "push": {"url": "http://collector:4318/v1/traces", "timeout_seconds": 5}
+    "push": {
+      "protocol": "otlp_http_json",
+      "url": "http://collector:4318/v1/traces",
+      "timeout_seconds": 5
+    }
   }
 }
 ```
@@ -44,8 +48,8 @@ invalid JSON, and requires every record to contain `resourceSpans` and at least 
 The endpoint must use HTTP or HTTPS. Delivery uses OTLP/HTTP JSON (`Content-Type:
 application/json`) and treats a non-success response as a replay failure.
 
-The synchronized container test sends looping traces and metric frames to one file-backed dummy
-receiver:
+The synchronized container test sends looping traces and OTLP metric frames to `/v1/traces` and
+`/v1/metrics` on one file-backed dummy OTLP receiver:
 
 ```text
 docker compose -f tests/test-containers/otel-replay/compose.yaml up --build --detach --wait

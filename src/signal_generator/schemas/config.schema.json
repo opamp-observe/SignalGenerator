@@ -189,6 +189,7 @@
           "additionalProperties": false,
           "required": ["url"],
           "properties": {
+            "protocol": {"const": "otlp_http_json", "default": "otlp_http_json"},
             "url": {"type": "string", "format": "uri"},
             "timeout_seconds": {"type": "number", "exclusiveMinimum": 0, "default": 5}
           }
@@ -230,7 +231,7 @@
           "additionalProperties": false,
           "properties": {
             "enabled": {"type": "boolean", "default": false},
-            "protocol": {"const": "pushgateway", "default": "pushgateway"},
+            "protocol": {"enum": ["pushgateway", "otlp_http_json"], "default": "pushgateway"},
             "url": {"type": "string", "format": "uri"},
             "job": {"type": "string", "minLength": 1},
             "grouping_key": {
@@ -266,7 +267,17 @@
           "allOf": [
             {
               "if": {"properties": {"enabled": {"const": true}}},
-              "then": {"required": ["url", "job", "interval_seconds"]}
+              "then": {"required": ["url", "interval_seconds"]}
+            },
+            {
+              "if": {
+                "required": ["enabled"],
+                "properties": {
+                  "enabled": {"const": true},
+                  "protocol": {"const": "pushgateway"}
+                }
+              },
+              "then": {"required": ["job"]}
             },
             {
               "not": {"required": ["basic_auth", "bearer_token_env"]}

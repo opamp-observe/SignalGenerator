@@ -61,6 +61,9 @@ async def test_replay_shifts_all_timestamps_and_remaps_ids_for_each_cycle(tmp_pa
     received: list[dict] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.headers["Content-Type"] == "application/json"
+        assert str(request.url) == "http://collector/v1/traces"
         received.append(json.loads(request.content))
         return httpx.Response(200, json={})
 

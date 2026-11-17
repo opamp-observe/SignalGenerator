@@ -14,7 +14,12 @@ from collections.abc import Mapping
 
 from signal_generator.config.models import MetricsConfig
 from signal_generator.metrics.exposition import ReplaySelfMetrics, create_pull_registry
-from signal_generator.metrics.push import PushAdapter, PushgatewayAdapter
+from signal_generator.metrics.push import (
+    OtlpHttpMetricAdapter,
+    PushAdapter,
+    PushConfigurationError,
+    PushgatewayAdapter,
+)
 from signal_generator.metrics.push_scheduler import PushLoopControl, run_push_loop
 from signal_generator.metrics.server import MetricHttpServer
 from signal_generator.metrics.source import load_metric_frames
@@ -91,7 +96,7 @@ class MetricReplayRuntime:
             return
         self.push_cursor = self.store.cursor(self.config.source.eof, "push")
         if self._push_adapter is None:
-            self._push_adapter = PushgatewayAdapter(self.config.push, self._environ)
+            self._push_adapter = _create_push_adapter(self.config, self._environ)
 
     async def start(self, stop_event: asyncio.Event) -> None:
         """Bind pull first, then launch the push task, and become ready."""
@@ -147,3 +152,15 @@ async def run_metric_runtime(config: MetricsConfig, stop_event: asyncio.Event) -
         return await runtime.wait(stop_event)
     finally:
         await runtime.close(stop_event)
+
+
+def _create_push_adapter(
+    config: MetricsConfig, environ: Mapping[str, str] | None
+) -> PushAdapter:
+    """Create the adapter selected by the validated metric push protocol."""
+
+    if config.push.protocol == "pushgateway":
+        return PushgatewayAdapter(config.push, environ)
+    if config.push.protocol == "otlp_http_json":
+        return OtlpHttpMetricAdapter(config.push, environ)
+    raise PushConfigurationError(f"unsupported metric push protocol: {config.push.protocol}")

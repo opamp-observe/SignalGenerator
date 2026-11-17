@@ -5,12 +5,13 @@
 # Unless required by applicable law or agreed to in writing, software distributed under the
 # License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND.
 
-"""Push adapter protocol and authenticated Pushgateway implementation."""
+"""Authenticated Pushgateway and OTLP/HTTP JSON metric adapters."""
 
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping
+import time
+from collections.abc import Callable, Mapping
 from typing import Protocol
 from urllib.parse import quote
 
@@ -19,9 +20,11 @@ import httpx
 from signal_generator.config.models import PushConfig
 from signal_generator.metrics.exposition import PROMETHEUS_CONTENT_TYPE, render_frame
 from signal_generator.metrics.models import MetricFrame
+from signal_generator.metrics.otlp import metric_frame_to_otlp_json
 
 HEADER_AUTHORIZATION = "Authorization"
 HEADER_CONTENT_TYPE = "Content-Type"
+OTLP_JSON_CONTENT_TYPE = "application/json"
 
 
 class PushAdapter(Protocol):
@@ -52,7 +55,7 @@ class PushgatewayAdapter:
         if not config.url or not config.job:
             raise PushConfigurationError("Pushgateway url and job are required")
         environment = os.environ if environ is None else environ
-        headers, auth = _resolve_authentication(config, environment)
+        headers, auth = _resolve_authentication(config, environment, PROMETHEUS_CONTENT_TYPE)
         verify = str(config.tls.ca_file) if config.tls.ca_file else config.tls.verify
         self._url = _grouping_url(config.url, config.job, config.grouping_key)
         self._headers = headers
@@ -81,6 +84,51 @@ class PushgatewayAdapter:
             await self._client.aclose()
 
 
+class OtlpHttpMetricAdapter:
+    """Deliver metric frames as JSON-encoded OTLP export requests over HTTP."""
+
+    def __init__(
+        self,
+        config: PushConfig,
+        environ: Mapping[str, str] | None = None,
+        client: httpx.AsyncClient | None = None,
+        clock: Callable[[], int] = time.time_ns,
+    ) -> None:
+        """Resolve endpoint, authentication, TLS, and an injectable point timestamp clock."""
+
+        if not config.url:
+            raise PushConfigurationError("OTLP/HTTP metric url is required")
+        environment = os.environ if environ is None else environ
+        headers, auth = _resolve_authentication(config, environment, OTLP_JSON_CONTENT_TYPE)
+        verify = str(config.tls.ca_file) if config.tls.ca_file else config.tls.verify
+        self._url = config.url
+        self._headers = headers
+        self._auth = auth
+        self._clock = clock
+        self._client = client or httpx.AsyncClient(
+            timeout=config.timeout_seconds,
+            verify=verify,
+        )
+        self._owns_client = client is None
+
+    async def push(self, frame: MetricFrame) -> None:
+        """POST one OTLP export request and reject non-success responses."""
+
+        response = await self._client.post(
+            self._url,
+            json=metric_frame_to_otlp_json(frame, self._clock()),
+            headers=self._headers,
+            auth=self._auth,
+        )
+        response.raise_for_status()
+
+    async def close(self) -> None:
+        """Close only a client created by this adapter."""
+
+        if self._owns_client:
+            await self._client.aclose()
+
+
 def _grouping_url(base_url: str, job: str, grouping_key: Mapping[str, str]) -> str:
     """Build a deterministic Pushgateway grouping path with escaped segments."""
 
@@ -91,13 +139,13 @@ def _grouping_url(base_url: str, job: str, grouping_key: Mapping[str, str]) -> s
 
 
 def _resolve_authentication(
-    config: PushConfig, environment: Mapping[str, str]
+    config: PushConfig, environment: Mapping[str, str], content_type: str
 ) -> tuple[dict[str, str], httpx.BasicAuth | None]:
     """Resolve one mutually exclusive authentication mode from named environment secrets."""
 
     if config.basic_auth and config.bearer_token_env:
         raise PushConfigurationError("basic_auth and bearer_token_env are mutually exclusive")
-    headers = {HEADER_CONTENT_TYPE: PROMETHEUS_CONTENT_TYPE}
+    headers = {HEADER_CONTENT_TYPE: content_type}
     if config.basic_auth:
         password = environment.get(config.basic_auth.password_env)
         if password is None:

@@ -5,8 +5,8 @@
     "source": {"path": "metrics.ndjson", "eof": "loop"},
     "push": {
       "enabled": true,
-      "url": "http://otel-receiver:4318",
-      "job": "synchronized_replay",
+      "protocol": "otlp_http_json",
+      "url": "http://otel-receiver:4318/v1/metrics",
       "interval_seconds": 0.1,
       "timeout_seconds": 2
     }
@@ -15,7 +15,11 @@
     "enabled": true,
     "source": {"path": "traces.ndjson"},
     "replay": {"cycles": 2, "acceleration": 10, "loop_gap_ms": 10},
-    "push": {"url": "http://otel-receiver:4318/v1/traces", "timeout_seconds": 2}
+    "push": {
+      "protocol": "otlp_http_json",
+      "url": "http://otel-receiver:4318/v1/traces",
+      "timeout_seconds": 2
+    }
   }
 }
 
