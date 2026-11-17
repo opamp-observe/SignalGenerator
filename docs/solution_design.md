@@ -45,7 +45,8 @@ using a versioned configuration model and replaceable Python interfaces.
 
 ## 3. Non-goals for the first release
 
-- Generating synthetic metric values from distributions. Values are replayed from JSON Lines.
+- Generating synthetic metric values during replay. Planned scenario authoring generates a complete,
+  inspectable JSON Lines file before replay under [SG-008](roadmap.md).
 - Acting as a Prometheus server or long-term metrics store.
 - Replacing Prometheus, Pushgateway, or an OpenTelemetry Collector.
 - Coupling the core package to OpAMP protocol libraries.
@@ -399,6 +400,234 @@ Self-metrics use a reserved `signal_generator_` prefix and include:
 - `signal_generator_log_output_failures_total`
 
 Self-metrics do not come from the frame file and do not change descriptor validation.
+
+### 9.9 Planned synthetic metric replay-file generation
+
+[SG-008](roadmap.md) adds an authoring step that produces the existing metric-frame JSON Lines
+format from a validated configuration. It does not calculate values inside the pull collector or
+push scheduler. Generation completes first, the resulting file can be reviewed or refined to
+stimulate a specific behavior, and normal validation and replay then consume that immutable file.
+This preserves deterministic cursors, makes generated incidents reproducible, and lets the same
+artifact be used by pull, Pushgateway, and OTLP metric delivery.
+
+The planned flow is:
+
+1. Validate the generation configuration without opening replay transports.
+2. Construct a synthetic timeline from `start_at`, `interval_ms`, and either `frames` or `duration`.
+3. Evaluate every metric definition at each synthetic date and time using a required seed.
+4. Write a candidate JSONL file atomically, never partially replacing an existing output.
+5. Validate the candidate through the normal metric-frame loader before making it available.
+6. Allow a user or test to refine the generated frames before selecting them as `metrics.source`.
+
+Each metric definition supplies its stable name, type, help text, optional unit and labels, plus one
+value domain:
+
+- `range` declares inclusive `minimum` and `maximum` numeric values; or
+- `enumerated` declares the complete set of permitted values.
+
+A `steady_state.value` establishes the normal value and must belong to that domain. Numeric steady
+state metrics may declare a fluctuation tolerance as either `percentage` or a
+**mathjson-solver** expression. A percentage defines a seeded deviation band around the steady
+state. A MathJSON expression evaluates a signed deviation for the current frame; the candidate is
+then constrained to the configured domain. For an enumerated domain, a MathJSON expression must
+evaluate to one of the declared members; percentage fluctuation is invalid. Counter generation
+must remain non-negative and monotonic unless an explicit reset frame is configured. Histogram and
+summary authoring must generate structures that already satisfy the existing cumulative-bucket,
+count, sum, and quantile contracts.
+
+Expressions receive read-only synthetic-time variables derived from the frame timestamp:
+`timestamp_unix_seconds`, `year`, `month`, `day`, `hour`, `minute`, `second`, `day_of_week`,
+`day_of_year`, and `frame_index`. They do not read the machine clock during evaluation. The
+expression evaluator must use the bounded **mathjson-solver** operation set rather than Python
+`eval`; file access, network access, arbitrary functions, unbounded recursion, and non-finite
+results are rejected. The same configuration, seed, generator version, and timezone must produce
+byte-identical output.
+
+The draft authoring shape below is illustrative. It is owned by SG-008 and is not accepted by the
+current runtime schema until that roadmap item is implemented:
+
+```json
+{
+  "schema_version": 1,
+  "synthetic_metrics": {
+    "seed": 419,
+    "timeline": {
+      "start_at": "2026-11-16T00:00:00Z",
+      "interval_ms": 60000,
+      "frames": 1440,
+      "timezone": "Europe/London"
+    },
+    "output": {"path": "generated/checkout_day.ndjson", "overwrite": false},
+    "metrics": [
+      {
+        "name": "checkout_latency_seconds",
+        "type": "gauge",
+        "help": "Synthetic checkout latency.",
+        "unit": "s",
+        "labels": {"service": "checkout"},
+        "values": {"range": {"minimum": 0.05, "maximum": 4.0}},
+        "steady_state": {
+          "value": 0.25,
+          "fluctuation": {"percentage": 8}
+        }
+      },
+      {
+        "name": "checkout_queue_depth",
+        "type": "gauge",
+        "help": "Synthetic checkout queue depth.",
+        "values": {"range": {"minimum": 0, "maximum": 500}},
+        "steady_state": {
+          "value": 12,
+          "fluctuation": {
+            "mathjson": ["If", ["Greater", "hour", 17], 80, 5]
+          }
+        }
+      },
+      {
+        "name": "checkout_state",
+        "type": "gauge",
+        "help": "Synthetic checkout state code.",
+        "values": {"enumerated": [0, 1, 2]},
+        "steady_state": {
+          "value": 0,
+          "fluctuation": {
+            "mathjson": ["If", ["Equal", "day_of_week", 6], 1, 0]
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+The implemented schema must use `oneOf` for range versus enumerated domains and percentage versus
+MathJSON fluctuation. Typed models, semantic validation, effective configuration, CLI diagnostics,
+fixtures, documentation, and deterministic golden-file tests must be delivered together.
+
+### 9.10 Planned template-based trace replay-file generation
+
+SG-008 applies the same generate-review-refine-validate-replay pattern to traces, but trace
+generation starts from a template rather than synthesizing every field. A template is an ordered
+series of newline-delimited OTLP JSON `ExportTraceServiceRequest` entries, such as
+`examples/traces/traces.ndjson`. A separate JSON generation configuration selects that template,
+defines the synthetic timeline and output file, and describes steady-state and anomalous
+alterations. Generation produces another ordinary trace NDJSON file; the trace replay runtime does
+not evaluate generation rules while it is sending data.
+
+For every generated occurrence, the generator must:
+
+1. Deep-copy the complete ordered template series without modifying the source file.
+2. Offset all template timestamps to the occurrence's synthetic date and time while preserving
+   span durations, event offsets, entry order, and relationships.
+3. Deterministically replace trace and span IDs for that occurrence, consistently updating parent
+   and link references so repeated template occurrences remain distinct.
+4. Apply configured steady-state mutations, seeded fluctuations, and active anomaly mutations.
+5. Validate the resulting OTLP JSON entries before atomically publishing the output NDJSON file.
+
+Mutation targets use a bounded JSONPath subset rooted at one original template entry. The supported
+subset must include object-member selection and numeric array indexes, for example
+`$.resourceSpans[0].scopeSpans[0].spans[0].status`. Wildcards, filters, scripts, recursive descent,
+and mutation-created paths are excluded from the first implementation. Every numeric index is
+resolved relative to the immutable template entry, not relative to an array produced by an earlier
+mutation. This means configuration continues to address the same template element even when a
+replacement JSON child contains arrays or objects. A missing or ambiguous target is a generation
+error. Mutations are evaluated in configuration order, but their target locations are resolved
+against the template before any mutation is applied; two mutations may not target the same path or
+an ancestor/descendant pair.
+
+Each mutation uses exactly one replacement form:
+
+- `set.value` supplies a JSON scalar (`string`, `number`, `boolean`, or `null`); or
+- `set.json` supplies a complete JSON object or array child structure.
+
+The replacement is copied into the generated payload, so later occurrences cannot share mutable
+state. Semantic validation must reject replacements that violate OTLP field types, identifier
+widths, timestamp ordering, or required trace structure. Mutation of generated trace/span IDs is
+not allowed; identity replacement remains generator-owned. A JSONPath may target an OTLP timestamp,
+but the replacement must be an integer nanosecond value and the generator must revalidate span
+start/end ordering and event timestamp validity after all mutations. Percentage fluctuation is invalid for
+absolute timestamps; duration variation is expressed by calculating an end timestamp from the
+read-only span start value, as in the example below.
+
+Trace anomalies share the metric generator's seed, synthetic timeline, timezone, and expression
+context. Numeric trace fields can use percentage fluctuation around a steady-state value, while
+anomaly activation and replacement values can use bounded **mathjson-solver** expressions. The
+trace expression context adds `template_index`, `occurrence_index`, and the read-only
+`template_value` to the metric variables so a rule can distinguish entries within the template
+series without depending on generated array positions. When a target belongs to a span, the context
+also provides `span_start_unix_nano` and `span_end_unix_nano`. Integer solver results assigned to
+OTLP decimal-string fields are serialized back to canonical decimal strings after range checks.
+
+The trace generation configuration has an explicit `enable_mathjson_solver` flag. When it is
+`true`, every string in a mutation rule whose first characters are the exact, case-sensitive prefix
+`mathjson-solver:` is treated as an expression. The suffix is JSON-escaped MathJSON text in the
+containing configuration string; it is decoded once and then evaluated by the same bounded solver
+used for metric generation. This recursive interpretation includes `when`, `set.value`, and strings
+inside `set.json` children. Other strings remain literal. When the flag is `false`, all strings
+remain literal and no solver is loaded. Invalid escaped JSON, an empty suffix, an unsupported
+operation, a non-finite result, or a result incompatible with the target field is a validation
+error rather than a literal fallback.
+
+This illustrative configuration is planned syntax and is not accepted by the current runtime
+schema:
+
+```json
+{
+  "schema_version": 1,
+  "synthetic_traces": {
+    "seed": 419,
+    "template": {"path": "examples/traces/traces.ndjson"},
+    "timeline": {
+      "start_at": "2026-11-16T00:00:00Z",
+      "interval_ms": 60000,
+      "occurrences": 1440,
+      "timezone": "Europe/London"
+    },
+    "enable_mathjson_solver": true,
+    "output": {"path": "generated/checkout_traces.ndjson", "overwrite": false},
+    "mutations": [
+      {
+        "template_index": 0,
+        "path": "$.resourceSpans[0].scopeSpans[0].spans[0].attributes",
+        "steady_state": {
+          "set": {
+            "json": [
+              {"key": "deployment.environment", "value": {"stringValue": "test"}}
+            ]
+          }
+        }
+      },
+      {
+        "template_index": 0,
+        "path": "$.resourceSpans[0].scopeSpans[0].spans[0].endTimeUnixNano",
+        "steady_state": {
+          "set": {
+            "value": "mathjson-solver:[\"Add\",\"span_start_unix_nano\",50000000]"
+          }
+        },
+        "anomalies": [
+          {
+            "when": "mathjson-solver:[\"And\",[\"GreaterEqual\",\"hour\",17],[\"Less\",\"hour\",19]]",
+            "set": {
+              "value": "mathjson-solver:[\"Add\",\"span_start_unix_nano\",500000000,[\"Multiply\",\"minute\",1000000]]"
+            }
+          }
+        ]
+      },
+      {
+        "template_index": 0,
+        "path": "$.resourceSpans[0].scopeSpans[0].spans[0].status",
+        "anomalies": [
+          {
+            "when": "mathjson-solver:[\"Equal\",\"day_of_week\",6]",
+            "set": {"json": {"code": 2, "message": "synthetic weekend failure"}}
+          }
+        ]
+      }
+    ]
+  }
+}
+```
 
 ## 10. HTTP and health contract
 

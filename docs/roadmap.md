@@ -22,7 +22,7 @@ have passed. Priority `P0` closes an accepted-design or safety gap; `P1` is the 
 | SG-005 | P1 | proposed | Validated hot reload without a process restart | Core and adapter |
 | SG-006 | P2 | proposed | Optional shared pull/push cursor | SignalGenerator-Python |
 | SG-007 | P1 | proposed | Streaming or indexed frame storage for very large JSONL sources | SignalGenerator-Python |
-| SG-008 | P2 | proposed | Seeded random and formula-based synthetic metric generation | SignalGenerator-Python |
+| SG-008 | P2 | proposed | Deterministic configuration-driven metric and trace replay-file generation | SignalGenerator-Python |
 | SG-009 | P2 | proposed | Browser user interface | SignalGenerator-Python |
 | SG-010 | P1 | proposed | Authentication and authorization on local pull/lifecycle routes | SignalGenerator-Python |
 | SG-011 | P2 | proposed | Distributed cursor coordination across replicas | SignalGenerator-Python |
@@ -150,10 +150,65 @@ protocol for replicas. Both require explicit delivery and failure semantics and 
 Replace eager in-memory loading with a validated index or streaming store while retaining precise
 line diagnostics, descriptor stability, EOF semantics, concurrency, and deterministic replay.
 
-### SG-008 and SG-009: scenario authoring
+### SG-008: synthetic metric and trace replay-file generation
 
-Synthetic generation must be seeded and reproducible. A browser UI must use the same schemas and
-validation API, introduce no manual bearer-token field, and remain outside the OpAMP provider.
+Add a separate authoring command that generates the existing metric-frame JSON Lines format before
+replay. The runtime must never generate values on demand during a scrape or push. A generated file
+is an ordinary, inspectable scenario artifact that can be manually or programmatically refined to
+stimulate the required behavior and then replayed through all existing metric transports.
+
+Trace authoring follows the same offline workflow but starts with an ordered OTLP JSONL template
+series plus a separate JSON generation configuration. Each occurrence copies and time-shifts the
+template, renews related IDs, and applies JSONPath-addressed steady-state and anomaly mutations
+before normal trace validation and replay.
+
+Delivery scope:
+
+- add a versioned generation schema, typed models, semantic validation, effective-configuration
+  handling, and actionable CLI diagnostics;
+- define a bounded synthetic timeline with explicit start, interval, frame count or duration, and
+  timezone;
+- require a seed and guarantee byte-identical output for the same configuration, generator
+  version, seed, and timezone;
+- configure metric names, supported metric types, descriptors, labels, and either inclusive
+  minimum/maximum ranges or enumerated value domains;
+- configure steady-state values and a fluctuation tolerance expressed as a percentage or a bounded
+  **mathjson-solver** expression;
+- expose synthetic date/time components and frame index to expressions so scenarios can model
+  time-of-day, day-of-week, and seasonal behavior without reading the live clock;
+- constrain every generated value to its declared domain and preserve counter, histogram, summary,
+  info, descriptor-stability, and numeric-validity rules;
+- evaluate MathJSON without Python `eval`, arbitrary functions, file/network access, unbounded
+  recursion, non-finite results, or uncontrolled computation;
+- write through a temporary candidate, validate it with the existing metric-frame loader, and
+  replace the requested output atomically only under an explicit overwrite policy; and
+- document a generate-review-refine-validate-replay workflow with range, enumeration, percentage,
+  time-of-day expression, steady-state, and deliberate incident examples;
+- accept an ordered trace template series without mutating it and produce a separate OTLP JSONL
+  replay artifact with deterministic timestamps and loop-safe trace/span identities;
+- resolve mutation JSONPaths against immutable template entries, with numeric array indexes always
+  relative to the template and with overlapping or missing targets rejected;
+- allow each trace mutation to replace a target with either a JSON scalar value or a complete JSON
+  object/array child structure, subject to OTLP semantic validation;
+- reuse the metric anomaly timeline, percentage fluctuation, seed, timezone, and bounded expression
+  context, adding template and occurrence indexes for trace rules; and
+- gate recursive expression handling behind `enable_mathjson_solver`: when enabled, replacement
+  strings beginning exactly with `mathjson-solver:` decode and evaluate their escaped suffix;
+  otherwise strings remain literal.
+
+Acceptance tests must cover deterministic golden files, different seeds, timezone boundaries,
+daylight-saving transitions, expression limits and failures, range clamping, enumerated membership,
+counter monotonicity and resets, complex metric families, trace template immutability, JSONPath
+index stability, scalar and child replacements, overlapping targets, ID/link consistency, solver
+gating and escaped-expression failures, output collision/atomicity, and replay of generated
+artifacts through pull plus OTLP metric and trace push container paths. The detailed draft contracts
+and examples are in [metric generation](solution_design.md#99-planned-synthetic-metric-replay-file-generation)
+and [trace generation](solution_design.md#910-planned-template-based-trace-replay-file-generation).
+
+### SG-009: browser scenario authoring
+
+A browser UI must use the same schemas and validation API, introduce no manual bearer-token field,
+and remain outside the OpAMP provider.
 
 ### SG-010: pull endpoint security
 
