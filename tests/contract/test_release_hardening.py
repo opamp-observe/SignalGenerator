@@ -129,6 +129,32 @@ def test_regression_runner_always_tears_down_and_records_failure(tmp_path: Path)
     assert "down" in commands[-1]
 
 
+def test_unavailable_opamp_context_warns_and_skips_without_failing(tmp_path: Path) -> None:
+    """An unavailable optional extension dependency must not fail core regression evidence."""
+
+    commands: list[list[str]] = []
+
+    def command_runner(
+        command: list[str], **_options: object
+    ) -> subprocess.CompletedProcess[bytes]:
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0)
+
+    result = run_regression(
+        ("unified",),
+        tmp_path / "compose.yaml",
+        tmp_path / "verify.py",
+        tmp_path / "missing-opamp-core",
+        "local",
+        command_runner,
+    )
+
+    assert result[KEY_PASSED]
+    assert result["warnings"]
+    assert result[KEY_RESULTS][0]["skipped"]
+    assert not commands
+
+
 def test_cloud_workflow_selects_protected_aws_or_azure_runner() -> None:
     """Manual cloud regression must route only to the explicit provider runner labels."""
 
@@ -139,9 +165,53 @@ def test_cloud_workflow_selects_protected_aws_or_azure_runner() -> None:
         "options: [aws, azure]",
         "check_cloud_runner.py",
         "run_regression.py",
+        "vars.ENABLE_REGRESSION_TESTS != 'false'",
         "if: always()",
     )
     assert all(fragment in workflow for fragment in required_fragments)
+
+
+def test_manual_regression_uses_github_hosted_runner_and_remote_context() -> None:
+    """CLI-dispatched regression must not require a self-hosted agent or adjacent checkout."""
+
+    workflow = Path(".github/workflows/regression.yml").read_text(encoding="utf-8")
+    compose = Path("tests/test-containers/phase5/compose.yaml").read_text(encoding="utf-8")
+
+    assert "workflow_dispatch" in workflow
+    assert "vars.ENABLE_REGRESSION_TESTS != 'false'" in workflow
+    assert "runs-on: ubuntu-latest" in workflow
+    assert "python scripts/run_regression.py" in workflow
+    assert "opamp-observe/opamp-core.git#v0.6" in compose
+    assert "../../../../opamp2" not in compose
+
+
+def test_opamp_extension_regression_is_an_isolated_manual_workflow() -> None:
+    """The optional consumer extension owns a separate manually dispatched regression job."""
+
+    core_workflow = Path(".github/workflows/regression.yml").read_text(encoding="utf-8")
+    opamp_workflow = Path(".github/workflows/opamp_regression.yml").read_text(encoding="utf-8")
+
+    assert "options: [all, pull, push]" in core_workflow
+    assert "unified" not in core_workflow
+    assert "workflow_dispatch" in opamp_workflow
+    assert "vars.ENABLE_REGRESSION_TESTS != 'false'" in opamp_workflow
+    assert "--profile unified" in opamp_workflow
+    assert "runs-on: ubuntu-latest" in opamp_workflow
+
+
+def test_repository_variable_can_disable_every_container_regression() -> None:
+    """One default-on repository variable must suppress every regression job."""
+
+    control = "vars.ENABLE_REGRESSION_TESTS != 'false'"
+    quality_workflow = Path(".github/workflows/quality.yml").read_text(encoding="utf-8")
+
+    assert quality_workflow.count(control) == 3
+    for workflow_path in (
+        ".github/workflows/cloud_regression.yml",
+        ".github/workflows/regression.yml",
+        ".github/workflows/opamp_regression.yml",
+    ):
+        assert control in Path(workflow_path).read_text(encoding="utf-8")
 
 
 def test_unreleased_opamp_composite_test_is_explicitly_suppressed() -> None:

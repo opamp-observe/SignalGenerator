@@ -1,0 +1,64 @@
+# Copyright 2026 opamp.info
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+# Unless required by applicable law or agreed to in writing, software distributed under the
+# License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND.
+
+name: manual regression
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Regression profile
+        required: true
+        default: all
+        type: choice
+        options: [all, pull, push]
+      source_ref:
+        description: Branch, tag, or commit to test
+        required: true
+        default: main
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manual-regression-${{ inputs.source_ref }}-${{ inputs.profile }}
+  cancel-in-progress: false
+
+jobs:
+  regression:
+    if: ${{ vars.ENABLE_REGRESSION_TESTS != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_ref }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - uses: docker/setup-buildx-action@v4
+      - name: Run isolated container regression
+        run: >-
+          python scripts/run_regression.py
+          --profile ${{ inputs.profile }}
+          --output test-results/regression.json
+      - name: Upload regression evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual-regression-${{ inputs.profile }}-${{ github.run_id }}
+          path: test-results/regression.json
+          if-no-files-found: warn
+      - name: Remove scoped test containers
+        if: always()
+        run: |
+          for profile in pull push; do
+            docker compose -p "signal-generator-regression-${profile}" \
+              -f tests/test-containers/phase5/compose.yaml \
+              --profile "${profile}" down --remove-orphans --volumes || true
+          done

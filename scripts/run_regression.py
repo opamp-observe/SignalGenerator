@@ -5,7 +5,7 @@
 # Unless required by applicable law or agreed to in writing, software distributed under the
 # License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND.
 
-"""Run isolated pull, push, and unified container regressions with guaranteed teardown."""
+"""Run isolated core and optional OpAMP container regressions with guaranteed teardown."""
 
 from __future__ import annotations
 
@@ -20,11 +20,15 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-ALL_PROFILES = ("pull", "push", "unified")
+CORE_PROFILES = ("pull", "push")
+OPAMP_PROFILE = "unified"
+ALL_PROFILES = (*CORE_PROFILES, OPAMP_PROFILE)
+DEFAULT_OPAMP_CORE_CONTEXT = "https://github.com/opamp-observe/opamp-core.git#v0.6"
 CommandRunner = Callable[..., subprocess.CompletedProcess[Any]]
 KEY_CLOUD = "cloud"
 KEY_PASSED = "passed"
 KEY_RESULTS = "results"
+KEY_WARNINGS = "warnings"
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,13 +40,15 @@ class RegressionResult:
     elapsed_seconds: float
     failed_stage: str | None
     return_code: int
+    skipped: bool = False
+    warning: str | None = None
 
 
 def run_regression(
     profiles: tuple[str, ...],
     compose_file: Path,
     verifier: Path,
-    opamp_core_context: Path,
+    opamp_core_context: str | Path,
     cloud: str,
     command_runner: CommandRunner = subprocess.run,
 ) -> dict[str, Any]:
@@ -52,15 +58,23 @@ def run_regression(
     if invalid_profiles:
         raise ValueError(f"unsupported regression profiles: {', '.join(invalid_profiles)}")
     environment = os.environ.copy()
-    environment["OPAMP_CORE_CONTEXT"] = str(opamp_core_context.resolve())
-    results = [
-        _run_profile(profile, compose_file, verifier, environment, command_runner)
-        for profile in profiles
-    ]
+    environment["OPAMP_CORE_CONTEXT"] = _build_context_value(opamp_core_context)
+    results: list[RegressionResult] = []
+    warnings: list[str] = []
+    for profile in profiles:
+        if profile == OPAMP_PROFILE:
+            warning = _opamp_dependency_warning(opamp_core_context, command_runner)
+            if warning:
+                print(f"WARNING: {warning}", file=sys.stderr, flush=True)
+                warnings.append(warning)
+                results.append(RegressionResult(profile, False, 0.0, None, 0, True, warning))
+                continue
+        results.append(_run_profile(profile, compose_file, verifier, environment, command_runner))
     return {
         KEY_CLOUD: cloud,
         KEY_RESULTS: [asdict(result) for result in results],
-        KEY_PASSED: all(result.passed for result in results),
+        KEY_WARNINGS: warnings,
+        KEY_PASSED: all(result.passed or result.skipped for result in results),
     }
 
 
@@ -115,6 +129,45 @@ def _run(
     return command_runner(command, check=False, env=environment)
 
 
+def _build_context_value(context: str | Path) -> str:
+    """Preserve remote BuildKit contexts and absolutize optional local overrides."""
+
+    value = str(context)
+    if "://" in value:
+        return value
+    return str(Path(value).expanduser().resolve())
+
+
+def _opamp_dependency_warning(
+    context: str | Path, command_runner: CommandRunner
+) -> str | None:
+    """Return a warning when the optional OpAMP build context cannot be resolved."""
+
+    value = str(context)
+    if "://" not in value:
+        local_context = Path(value).expanduser().resolve()
+        required_paths = (local_context / "consumer", local_context / "shared")
+        if all(path.is_dir() for path in required_paths):
+            return None
+        return f"OpAMP extension regression skipped: context is unavailable: {local_context}"
+    repository_url, separator, revision = value.partition("#")
+    command = ["git", "ls-remote", "--exit-code", repository_url]
+    if separator and revision:
+        command.append(revision)
+    try:
+        completed = command_runner(
+            command,
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError as error:
+        return f"OpAMP extension regression skipped: dependency check failed: {error}"
+    if completed.returncode:
+        return f"OpAMP extension regression skipped: context is unavailable: {value}"
+    return None
+
+
 def main(arguments: list[str] | None = None) -> int:
     """Parse suite selection, run profiles, and retain a JSON summary."""
 
@@ -133,11 +186,13 @@ def main(arguments: list[str] | None = None) -> int:
         default=repository_root / "tests" / "test-containers" / "phase5" / "verify.py",
     )
     parser.add_argument(
-        "--opamp-core-context", type=Path, default=repository_root.parent / "opamp2"
+        "--opamp-core-context",
+        default=DEFAULT_OPAMP_CORE_CONTEXT,
+        help="BuildKit Git URL or optional local opamp-core checkout",
     )
     parser.add_argument("--output", type=Path, default=repository_root / "test-results" / "regression.json")
     options = parser.parse_args(arguments)
-    profiles = ALL_PROFILES if options.profile == "all" else (options.profile,)
+    profiles = CORE_PROFILES if options.profile == "all" else (options.profile,)
     result = run_regression(
         profiles,
         options.compose_file.resolve(),

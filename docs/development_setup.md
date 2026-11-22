@@ -98,8 +98,9 @@ python scripts/dev.py unit containers audit pylint renovate
 
 The developer CLI runs unit tests without the repository-wide coverage threshold, the supported
 local container scenarios with guaranteed teardown, the core `pip-audit` and Pylint checks, and
-Renovate in dry-run mode when installed. Add `--include-unified --opamp-core-context ../opamp2` to
-include the companion-dependent unified container profile.
+Renovate in dry-run mode when installed. Add `--include-unified` to include the unified container
+profile. Its build fetches the pinned upstream `opamp-core` v0.6 Git context; use
+`--opamp-core-context PATH_OR_GIT_URL` only to override that source.
 
 It covers both distributions, branch coverage, cyclomatic complexity, source-security rules, and
 dependency auditing. Functions may be no worse than Radon B/McCabe 10, while module and package
@@ -124,16 +125,34 @@ and import `signal_generator_opamp_sim.quart_app`.
 
 ## Container and regression development
 
-Run all profiles sequentially:
+Run the core pull and push profiles sequentially:
 
 ```text
 python scripts/check_cloud_runner.py --cloud aws
-python scripts/run_regression.py --profile all --opamp-core-context ../opamp2
+python scripts/run_regression.py --profile all
 ```
+
+Run the separately isolated OpAMP consumer extension profile when its optional upstream context is
+available:
+
+```text
+python scripts/run_regression.py --profile unified
+```
+
+If that context cannot be resolved, the extension profile records a skip and warning rather than
+failing the core regression result. Once dependencies are available, an actual extension startup
+or verification failure remains a failure.
 
 The prerequisite checker is read-only; `--cloud` records the intended runner type. The regression
 script scopes each Compose project by profile, emits a JSON report, captures service logs on
 failure, and tears down in a `finally` path.
+
+All GitHub regression jobs are enabled by default. To suspend them without changing workflow
+files, create the repository Actions variable `ENABLE_REGRESSION_TESTS` with the exact value
+`false` under **Settings → Secrets and variables → Actions → Variables**. This skips the pull,
+push, OTLP replay, unified, GitHub-hosted manual, and cloud regression jobs before a runner is
+allocated. Delete the variable or set it to any value other than `false` to restore them. Unit,
+quality, security, packaging, and publication jobs are not disabled by this switch.
 
 GitHub's composite `unified-container` job is currently suppressed because the released
 `opamp-core` packages do not yet expose every mechanism required by the single-process simulator
@@ -164,9 +183,25 @@ In GitHub:
 3. Approve the matching `cloud-regression-aws` or `cloud-regression-azure` environment.
 4. Download the JSON evidence artifact after completion.
 
-The workflow checks out this repository plus `opamp-observe/opamp-core`, verifies runner capacity,
-runs the selected profiles, uploads reports even on failure, and performs a final scoped cleanup.
+The workflow checks out this repository, uses the pinned upstream `opamp-core` v0.6 BuildKit Git
+context, verifies runner capacity, runs the selected profiles, uploads reports even on failure, and
+performs a final scoped cleanup.
 Configure the cloud runner group so only this repository and protected workflow can target it.
+
+For a manually dispatched GitHub-hosted run that needs no self-hosted runner or adjacent checkout:
+
+```text
+gh workflow run regression.yml -f profile=all -f source_ref=main
+gh run watch
+```
+
+The `manual regression` workflow uses `ubuntu-latest` for core profiles. The separate `OpAMP
+extension regression` workflow isolates the unified adapter profile and also uses a GitHub-hosted
+runner. Only `cloud regression` targets the protected AWS/Azure self-hosted runner pools.
+
+```text
+gh workflow run opamp_regression.yml -f source_ref=main
+```
 
 ## Contribution and release
 

@@ -88,6 +88,7 @@ jobs:
           path: test-results/performance.json
 
   metrics-container:
+    if: ${{ vars.ENABLE_REGRESSION_TESTS != 'false' }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -103,6 +104,7 @@ jobs:
         run: docker compose -f tests/test-containers/phase5/compose.yaml --profile ${{ matrix.profile }} down --remove-orphans
 
   otel-replay-container:
+    if: ${{ vars.ENABLE_REGRESSION_TESTS != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -117,7 +119,9 @@ jobs:
   unified-container:
     # Unset/false is intentional until opamp-core publishes the composite simulator APIs.
     # Set this repository variable to true to restore the integration job after that release.
-    if: ${{ vars.ENABLE_OPAMP_CORE_SIMULATOR_INTEGRATION_TESTS == 'true' }}
+    if: >-
+      ${{ vars.ENABLE_REGRESSION_TESTS != 'false' &&
+          vars.ENABLE_OPAMP_CORE_SIMULATOR_INTEGRATION_TESTS == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

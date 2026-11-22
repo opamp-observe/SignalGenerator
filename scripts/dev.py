@@ -23,6 +23,7 @@ PHASE5_COMPOSE = REPOSITORY_ROOT / "tests" / "test-containers" / "phase5" / "com
 PHASE5_VERIFY = REPOSITORY_ROOT / "tests" / "test-containers" / "phase5" / "verify.py"
 OTEL_COMPOSE = REPOSITORY_ROOT / "tests" / "test-containers" / "otel-replay" / "compose.yaml"
 OTEL_VERIFY = REPOSITORY_ROOT / "tests" / "test-containers" / "otel-replay" / "verify.py"
+DEFAULT_OPAMP_CORE_CONTEXT = "https://github.com/opamp-observe/opamp-core.git#v0.6"
 TASKS = ("unit", "containers", "audit", "pylint", "renovate")
 
 
@@ -54,9 +55,8 @@ def _parse_arguments(arguments: Sequence[str] | None = None) -> argparse.Namespa
     )
     parser.add_argument(
         "--opamp-core-context",
-        type=Path,
-        default=REPOSITORY_ROOT.parent / "opamp2",
-        help="companion opamp-core checkout used by the unified scenario",
+        default=DEFAULT_OPAMP_CORE_CONTEXT,
+        help="BuildKit Git URL or optional local opamp-core checkout for the unified scenario",
     )
     return parser.parse_args(arguments)
 
@@ -136,7 +136,7 @@ def _container_tests(options: argparse.Namespace) -> int:
     return 0
 
 
-def _run_container_scenario(scenario: ContainerScenario, opamp_context: Path) -> int:
+def _run_container_scenario(scenario: ContainerScenario, opamp_context: str | Path) -> int:
     """Start, verify, and always tear down one Compose scenario."""
 
     base = [
@@ -150,7 +150,7 @@ def _run_container_scenario(scenario: ContainerScenario, opamp_context: Path) ->
     profile = ["--profile", scenario.profile] if scenario.profile else []
     environment = None
     if scenario.name == "unified":
-        environment = {"OPAMP_CORE_CONTEXT": str(opamp_context.resolve())}
+        environment = {"OPAMP_CORE_CONTEXT": _build_context_value(opamp_context)}
     try:
         status = _run_with_environment(
             [*base, *profile, "up", "--build", "--detach", "--wait"], environment
@@ -176,6 +176,15 @@ def _run_with_environment(command: list[str], overrides: dict[str, str] | None) 
         command, cwd=REPOSITORY_ROOT, check=False, env=environment
     )
     return completed.returncode
+
+
+def _build_context_value(context: str | Path) -> str:
+    """Preserve remote BuildKit contexts and absolutize optional local overrides."""
+
+    value = str(context)
+    if "://" in value:
+        return value
+    return str(Path(value).expanduser().resolve())
 
 
 RUNNERS: dict[str, Callable[[argparse.Namespace], int]] = {

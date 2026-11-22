@@ -44,7 +44,9 @@ missing repository code.
 - Adapter tests exercise schema-only/full validation, installed discovery, supervised lifecycle,
   invalid remote configuration, passive health, unified routes, and deterministic shutdown.
 - The cloud regression workflow can target an ephemeral AWS or Azure self-hosted runner and retains
-  machine-readable evidence for pull, push, and unified profiles.
+  machine-readable evidence for pull and push profiles. The isolated OpAMP workflow owns the
+  unified profile. Setting the repository Actions variable `ENABLE_REGRESSION_TESTS` to the exact
+  value `false` skips all container and manual regression jobs before runner allocation.
 - `opamp-core` supplies the generic simulator client without SignalGenerator-specific changes.
   Embeddable lifecycle, schemas, entry points, and composition remain in the independent adapter.
 - The OpAMP provider is not a deployment mode and is not in the adapter dependency graph.
@@ -67,7 +69,7 @@ necessarily evidenced by the first signed release rather than this source audit.
 ```text
 python scripts/security_checks.py
 python scripts/benchmark_replay.py --output test-results/performance.json
-python scripts/run_regression.py --profile all --opamp-core-context ../opamp2
+python scripts/run_regression.py --profile all
 python -m build --outdir dist/core .
 python -m build --outdir dist/adapter integrations/opamp-simulator
 python -m twine check dist/core/* dist/adapter/*

@@ -18,7 +18,7 @@ on:
         required: true
         default: all
         type: choice
-        options: [all, pull, push, unified]
+        options: [all, pull, push]
       source_ref:
         description: Branch, tag, or commit to test
         required: true
@@ -34,6 +34,7 @@ concurrency:
 
 jobs:
   regression:
+    if: ${{ vars.ENABLE_REGRESSION_TESTS != 'false' }}
     name: ${{ inputs.cloud }} / ${{ inputs.profile }}
     runs-on:
       - self-hosted
@@ -46,10 +47,6 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.source_ref }}
-      - uses: actions/checkout@v6
-        with:
-          repository: opamp-observe/opamp-core
-          path: opamp-core
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -63,7 +60,6 @@ jobs:
           python scripts/run_regression.py
           --cloud ${{ inputs.cloud }}
           --profile ${{ inputs.profile }}
-          --opamp-core-context "${{ github.workspace }}/opamp-core"
           --output test-results/regression.json
       - name: Upload regression evidence
         if: always()
@@ -75,7 +71,7 @@ jobs:
       - name: Remove scoped test containers
         if: always()
         run: |
-          for profile in pull push unified; do
+          for profile in pull push; do
             docker compose -p "signal-generator-regression-${profile}" \
               -f tests/test-containers/phase5/compose.yaml \
               --profile "${profile}" down --remove-orphans --volumes || true

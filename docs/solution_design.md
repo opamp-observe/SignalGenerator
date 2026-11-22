@@ -524,6 +524,56 @@ For every generated occurrence, the generator must:
 4. Apply configured steady-state mutations, seeded fluctuations, and active anomaly mutations.
 5. Validate the resulting OTLP JSON entries before atomically publishing the output NDJSON file.
 
+#### 9.10.1 Template identity slots
+
+Every generated occurrence (one complete cycle of the template series) starts with a fresh set of
+non-zero, lowercase hexadecimal OTLP trace and span IDs. IDs are stable only within that occurrence;
+the next occurrence creates new values for every identity slot. This prevents separate generated
+cycles from being combined into one trace by a collector.
+
+An ID without a suffix selects the default slot for its ID kind. When a template needs multiple
+distinct trace IDs or span IDs, append a positive slot suffix such as `+1`, `+2`, or `+3` to the
+template value. Slot namespaces are separate for trace IDs and span IDs:
+
+- every `traceId` carrying `+1` receives the same generated 32-character trace ID within one
+  occurrence;
+- every `spanId`, `parentSpanId`, or linked span ID carrying `+1` receives the same generated
+  16-character span ID within that occurrence;
+- `+1` and `+2` always produce different IDs of the same kind; and
+- the same suffix produces new IDs when the next template occurrence starts.
+
+The suffix, rather than the hexadecimal stem before it, identifies the slot. Suffixes must be
+positive base-10 integers without leading zeroes; `+0`, `+01`, a bare `+`, negative values, and
+multiple suffixes are invalid. The suffix is template notation only and is removed from generated
+OTLP output. The generator validates the emitted widths and maintains the same slot mapping across
+all template entries, parent references, and links in the occurrence.
+
+For example, this template fragment describes one trace with a root and child span:
+
+```json
+[
+  {
+    "traceId": "11111111111111111111111111111111",
+    "spanId": "2222222222222222+1",
+    "name": "root"
+  },
+  {
+    "traceId": "11111111111111111111111111111111",
+    "spanId": "2222222222222222+2",
+    "parentSpanId": "2222222222222222+1",
+    "name": "child"
+  }
+]
+```
+
+Within the first occurrence, both unsuffixed `traceId` values map to one new trace ID, the root
+`spanId` and child `parentSpanId` map to the same new `+1` span ID, and the child receives a
+different `+2` span ID. The second occurrence repeats those relationships using an entirely new
+trace ID, `+1` span ID, and `+2` span ID. To model two traces in one occurrence, their template
+`traceId` values use `+1` and `+2` respectively. If the generated file is subsequently replayed in
+multiple runtime cycles, the existing trace replay identity remapping creates another fresh set for
+each runtime cycle while preserving these within-cycle relationships.
+
 Mutation targets use a bounded JSONPath subset rooted at one original template entry. The supported
 subset must include object-member selection and numeric array indexes, for example
 `$.resourceSpans[0].scopeSpans[0].spans[0].status`. Wildcards, filters, scripts, recursive descent,
@@ -545,9 +595,9 @@ state. Semantic validation must reject replacements that violate OTLP field type
 widths, timestamp ordering, or required trace structure. Mutation of generated trace/span IDs is
 not allowed; identity replacement remains generator-owned. A JSONPath may target an OTLP timestamp,
 but the replacement must be an integer nanosecond value and the generator must revalidate span
-start/end ordering and event timestamp validity after all mutations. Percentage fluctuation is invalid for
-absolute timestamps; duration variation is expressed by calculating an end timestamp from the
-read-only span start value, as in the example below.
+start/end ordering and event timestamp validity after all mutations. Percentage fluctuation is
+invalid for absolute timestamps; duration variation is expressed by calculating an end timestamp
+from the read-only span start value, as in the example below.
 
 Trace anomalies share the metric generator's seed, synthetic timeline, timezone, and expression
 context. Numeric trace fields can use percentage fluctuation around a steady-state value, while

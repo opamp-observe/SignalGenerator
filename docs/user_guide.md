@@ -141,7 +141,8 @@ Use one profile at a time because the demo uses fixed host ports:
 ```text
 python scripts/run_regression.py --profile pull
 python scripts/run_regression.py --profile push
-python scripts/run_regression.py --profile unified --opamp-core-context ../opamp2
+# Optional, isolated OpAMP consumer extension:
+python scripts/run_regression.py --profile unified
 docker compose -f tests/test-containers/otel-replay/compose.yaml up --build --detach --wait
 python tests/test-containers/otel-replay/verify.py
 ```
@@ -149,6 +150,10 @@ python tests/test-containers/otel-replay/verify.py
 `run_regression.py` builds the images, waits for readiness, verifies public Prometheus or
 Pushgateway behavior, records `test-results/regression.json`, prints diagnostics on failure, and
 always removes its scoped containers and volumes.
+
+`--profile all` covers only the core `pull` and `push` profiles. The unified OpAMP consumer
+extension is deliberately isolated behind `--profile unified`; unavailable optional OpAMP
+dependencies produce a recorded warning and skip rather than failing core regression.
 
 ## Use the OpAMP adapter
 

@@ -45,6 +45,18 @@ def test_container_start_failure_still_tears_down(monkeypatch) -> None:
 
     monkeypatch.setattr(dev, "_run_with_environment", run)
     scenario = dev.ContainerScenario("pull", Path("compose.yaml"), "pull", ("verify.py",))
-    assert dev._run_container_scenario(scenario, Path("opamp2")) == 7  # pylint: disable=protected-access
+    assert dev._run_container_scenario(  # pylint: disable=protected-access
+        scenario, Path("opamp-core-local")
+    ) == 7
     assert "down" in commands[-1]
+
+
+def test_opamp_build_context_preserves_git_url_and_resolves_local_path(tmp_path: Path) -> None:
+    """Unified builds need no adjacent checkout but still accept an explicit local override."""
+
+    remote = "https://github.com/opamp-observe/opamp-core.git#v0.6"
+    assert dev._build_context_value(remote) == remote  # pylint: disable=protected-access
+    assert dev._build_context_value(tmp_path) == str(  # pylint: disable=protected-access
+        tmp_path.resolve()
+    )
 

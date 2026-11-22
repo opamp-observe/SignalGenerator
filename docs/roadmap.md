@@ -186,6 +186,9 @@ Delivery scope:
   time-of-day expression, steady-state, and deliberate incident examples;
 - accept an ordered trace template series without mutating it and produce a separate OTLP JSONL
   replay artifact with deterministic timestamps and loop-safe trace/span identities;
+- generate a fresh base set of trace and span IDs for every complete template occurrence, while
+  treating `+1`, `+2`, and later positive suffixes as stable, distinct identity slots within that
+  occurrence across spans, parents, and links;
 - resolve mutation JSONPaths against immutable template entries, with numeric array indexes always
   relative to the template and with overlapping or missing targets rejected;
 - allow each trace mutation to replace a target with either a JSON scalar value or a complete JSON
@@ -199,10 +202,11 @@ Delivery scope:
 Acceptance tests must cover deterministic golden files, different seeds, timezone boundaries,
 daylight-saving transitions, expression limits and failures, range clamping, enumerated membership,
 counter monotonicity and resets, complex metric families, trace template immutability, JSONPath
-index stability, scalar and child replacements, overlapping targets, ID/link consistency, solver
-gating and escaped-expression failures, output collision/atomicity, and replay of generated
-artifacts through pull plus OTLP metric and trace push container paths. The detailed draft contracts
-and examples are in [metric generation](solution_design.md#99-planned-synthetic-metric-replay-file-generation)
+index stability, scalar and child replacements, overlapping targets, per-occurrence ID renewal,
+unsuffixed and suffixed ID slots, parent/link consistency, malformed suffix rejection, solver gating
+and escaped-expression failures, output collision/atomicity, and replay of generated artifacts
+through pull plus OTLP metric and trace push container paths. The detailed draft contracts and
+examples are in [metric generation](solution_design.md#99-planned-synthetic-metric-replay-file-generation)
 and [trace generation](solution_design.md#910-planned-template-based-trace-replay-file-generation).
 
 ### SG-009: browser scenario authoring
