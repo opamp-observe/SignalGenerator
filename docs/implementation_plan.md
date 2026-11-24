@@ -10,7 +10,7 @@ and acceptance criteria for unfinished work remain authoritative in
   and priority, and create monotonic loop epochs.
 - **SG-002 — OpenMetrics negotiation (P0):** negotiate Prometheus versus OpenMetrics from the HTTP
   `Accept` header while ensuring one successful scrape advances exactly one frame.
-- **SG-003 — OpAMP scenario-bundle actions (P0):** securely stage, validate, activate, inspect,
+- **SG-003 — OpAMP scenario-bundle actions (P3):** securely stage, validate, activate, inspect,
   roll back, and discard configuration plus referenced test-data files through versioned,
   idempotent OpAMP custom actions.
 - **SG-004 — Prometheus remote write (P1):** add an authenticated protobuf/snappy remote-write
@@ -19,8 +19,6 @@ and acceptance criteria for unfinished work remain authoritative in
   without restarting the host process and retain the previous scenario for rollback.
 - **SG-006 — Optional shared cursor (P2):** define and implement explicit opt-in semantics for a
   pull and push path sharing one cursor.
-- **SG-007 — Large-source storage (P1):** replace eager loading with bounded streaming or indexed
-  storage while preserving validation, deterministic ordering, and EOF behavior.
 - **SG-008 — Synthetic metrics (P2):** generate reproducible seeded or formula-based metric values
   through the same typed schema and validation pipeline.
 - **SG-009 — Browser interface (P2):** provide schema-backed scenario authoring and runtime control
